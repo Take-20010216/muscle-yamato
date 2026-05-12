@@ -57,19 +57,22 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
 
   return (
     <div>
-      <label className="block text-sm text-muted mb-2">{label}</label>
+      {label && <label className="block text-sm text-muted mb-2">{label}</label>}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full bg-card border border-border rounded-xl px-4 py-4 flex items-center justify-between"
+        className="w-full bg-white border border-border rounded-xl px-4 py-4 flex items-center justify-between hover:bg-surface"
       >
-        <span className={value ? "text-white" : "text-muted"}>{value ? value.name : "種目を選択"}</span>
+        <span className={value ? "text-ink font-medium" : "text-muted"}>{value ? value.name : "種目を選択"}</span>
         <span className="text-muted">›</span>
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-end" onClick={() => setOpen(false)}>
-          <div className="bg-surface w-full max-w-md mx-auto rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+1rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-end" onClick={() => setOpen(false)}>
+          <div
+            className="bg-white w-full max-w-md mx-auto rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold">種目を選択</h3>
               <button onClick={() => setOpen(false)} className="text-muted">閉じる</button>
@@ -84,12 +87,12 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
 
             <ul className="space-y-2 mb-4">
               {filtered.map((ex) => (
-                <li key={ex.id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
+                <li key={ex.id} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between">
                   <button className="text-left flex-1" onClick={() => { onChange(ex); setOpen(false); }}>
                     <div className="font-medium">{ex.name}</div>
                     <div className="text-xs text-muted">{ex.body_part}</div>
                   </button>
-                  <button onClick={() => deleteExercise(ex.id)} className="text-red-400 text-sm ml-3">削除</button>
+                  <button onClick={() => deleteExercise(ex.id)} className="text-red-500 text-sm ml-3">削除</button>
                 </li>
               ))}
               {filtered.length === 0 && <p className="text-muted text-sm">種目が登録されていません</p>}
@@ -98,14 +101,14 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
             {!creating ? (
               <button
                 onClick={() => setCreating(true)}
-                className="w-full border border-dashed border-border rounded-xl py-3 text-muted"
+                className="w-full border border-dashed border-border rounded-xl py-3 text-muted hover:bg-surface"
               >
                 ＋ 新しい種目を追加
               </button>
             ) : (
-              <div className="space-y-2 bg-card p-3 rounded-xl border border-border">
+              <div className="space-y-2 bg-surface p-3 rounded-xl border border-border">
                 <input
-                  className="w-full bg-bg border border-border rounded-lg px-3 py-2"
+                  className="w-full bg-white border border-border rounded-lg px-3 py-2"
                   placeholder="種目名（例: ベンチプレス）"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -117,13 +120,13 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
                       key={b}
                       type="button"
                       onClick={() => setNewBodyPart(b)}
-                      className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${newBodyPart === b ? "bg-white text-black" : "bg-bg border border-border text-muted"}`}
+                      className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${newBodyPart === b ? "bg-ink text-white" : "bg-white border border-border text-muted"}`}
                     >{b}</button>
                   ))}
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setCreating(false)} className="flex-1 border border-border rounded-lg py-2">キャンセル</button>
-                  <button type="button" onClick={createExercise} className="flex-1 bg-white text-black font-bold rounded-lg py-2">追加</button>
+                  <button type="button" onClick={createExercise} className="flex-1 bg-ink text-white font-bold rounded-lg py-2">追加</button>
                 </div>
               </div>
             )}
@@ -136,7 +139,7 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
 
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${active ? "bg-white text-black" : "bg-card border border-border text-muted"}`}>
+    <button onClick={onClick} className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${active ? "bg-ink text-white" : "bg-white border border-border text-muted"}`}>
       {children}
     </button>
   );

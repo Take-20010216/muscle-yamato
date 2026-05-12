@@ -5,12 +5,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#000000",
-        surface: "#0e0e0e",
-        card: "#161616",
-        border: "#222222",
-        muted: "#8a8a8a",
-        accent: "#e8e8e8",
+        bg: "#ffffff",
+        surface: "#fafafa",
+        card: "#ffffff",
+        border: "#e5e5e5",
+        muted: "#6b7280",
+        accent: "#111111",
+        ink: "#111111",
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"],

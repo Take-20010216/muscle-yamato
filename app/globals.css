@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 html, body {
-  background: #000;
-  color: #fff;
+  background: #ffffff;
+  color: #111111;
   -webkit-font-smoothing: antialiased;
 }
 

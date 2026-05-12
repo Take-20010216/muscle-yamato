@@ -37,9 +37,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <h1 className="text-3xl font-bold tracking-wider mb-1">MUSCLE YAMATO</h1>
         <p className="text-muted text-sm mb-8">筋トレ記録アプリ</p>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-3">
           <input
-            className="w-full bg-card border border-border rounded-xl px-4 py-3 outline-none"
+            className="w-full bg-white border border-border rounded-xl px-4 py-3 outline-none focus:border-ink"
             placeholder="ユーザー名"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -47,22 +47,22 @@ export default function LoginPage() {
           />
           <input
             type="password"
-            className="w-full bg-card border border-border rounded-xl px-4 py-3 outline-none"
+            className="w-full bg-white border border-border rounded-xl px-4 py-3 outline-none focus:border-ink"
             placeholder="パスワード"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
-          {err && <p className="text-red-400 text-sm">{err}</p>}
+          {err && <p className="text-red-500 text-sm">{err}</p>}
           <button
             disabled={loading}
-            className="w-full bg-gradient-to-r from-zinc-300 to-zinc-100 text-black font-bold rounded-xl py-3 disabled:opacity-50"
+            className="w-full bg-ink text-white font-bold rounded-xl py-3 disabled:opacity-50"
           >
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
         <p className="text-sm text-muted mt-6 text-center">
-          アカウント未作成？ <Link href="/signup" className="text-white underline">新規登録</Link>
+          アカウント未作成？ <Link href="/signup" className="text-ink font-semibold underline">新規登録</Link>
         </p>
       </div>
     </main>

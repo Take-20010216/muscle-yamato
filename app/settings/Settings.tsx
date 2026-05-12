@@ -19,11 +19,13 @@ export default function Settings() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: pr } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-    setProfile(pr);
-    setDisplayName(pr?.display_name ?? pr?.username ?? "");
-    const { data: ex } = await supabase.from("exercises").select("*").order("created_at", { ascending: false });
-    setExercises((ex as Exercise[]) ?? []);
+    const [pr, ex] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      supabase.from("exercises").select("*").order("created_at", { ascending: false }),
+    ]);
+    setProfile(pr.data);
+    setDisplayName(pr.data?.display_name ?? pr.data?.username ?? "");
+    setExercises((ex.data as Exercise[]) ?? []);
   }
 
   async function saveProfile() {
@@ -60,7 +62,7 @@ export default function Settings() {
 
       <section className="mb-6">
         <h2 className="text-sm tracking-widest text-muted mb-2">プロフィール</h2>
-        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="bg-white border border-border rounded-xl p-4 space-y-3">
           <div>
             <div className="text-xs text-muted">ユーザー名</div>
             <div className="font-bold">{profile?.username ?? "-"}</div>
@@ -70,10 +72,10 @@ export default function Settings() {
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-bg border border-border rounded-lg px-3 py-2 outline-none"
+              className="w-full bg-white border border-border rounded-lg px-3 py-2 outline-none focus:border-ink"
             />
           </div>
-          <button onClick={saveProfile} disabled={saving} className="w-full bg-white text-black font-bold rounded-lg py-2 disabled:opacity-50">
+          <button onClick={saveProfile} disabled={saving} className="w-full bg-ink text-white font-bold rounded-lg py-2 disabled:opacity-50">
             {saving ? "保存中..." : "保存"}
           </button>
         </div>
@@ -87,13 +89,13 @@ export default function Settings() {
             const list = exercises.filter((e) => e.body_part === bp);
             if (list.length === 0) return null;
             return (
-              <div key={bp} className="bg-card border border-border rounded-xl p-3">
+              <div key={bp} className="bg-white border border-border rounded-xl p-3">
                 <div className="text-xs text-muted mb-1">{bp}</div>
                 <ul className="space-y-1">
                   {list.map((ex) => (
                     <li key={ex.id} className="flex items-center justify-between py-1.5 border-t border-border first:border-0">
                       <span>{ex.name}</span>
-                      <button onClick={() => deleteExercise(ex.id)} className="text-red-400 text-sm">削除</button>
+                      <button onClick={() => deleteExercise(ex.id)} className="text-red-500 text-sm">削除</button>
                     </li>
                   ))}
                 </ul>
@@ -105,13 +107,10 @@ export default function Settings() {
       </section>
 
       <section className="mb-6">
-        <h2 className="text-sm tracking-widest text-muted mb-2">そのほか</h2>
-        <div className="space-y-2">
-          <Link href="/timeline" className="block bg-card border border-border rounded-xl px-4 py-3">タイムラインへ</Link>
-          <button onClick={logout} className="w-full bg-card border border-border rounded-xl px-4 py-3 text-left text-red-400">
-            ログアウト
-          </button>
-        </div>
+        <h2 className="text-sm tracking-widest text-muted mb-2">アカウント</h2>
+        <button onClick={logout} className="w-full bg-white border border-border rounded-xl px-4 py-3 text-left text-red-500">
+          ログアウト
+        </button>
       </section>
     </main>
   );

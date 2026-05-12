@@ -15,13 +15,17 @@ export default function BottomNav() {
   if (pathname === "/login" || pathname === "/signup") return null;
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-black/90 backdrop-blur border-t border-border z-50">
+    <nav className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-border z-50">
       <ul className="grid grid-cols-5 max-w-md mx-auto">
         {tabs.map((t) => {
           const active = pathname === t.href || (t.href !== "/" && pathname.startsWith(t.href));
           return (
             <li key={t.href}>
-              <Link href={t.href} className={`flex flex-col items-center py-2 text-[11px] ${active ? "text-white" : "text-muted"}`}>
+              <Link
+                href={t.href}
+                prefetch={true}
+                className={`flex flex-col items-center py-2 text-[11px] ${active ? "text-ink font-semibold" : "text-muted"}`}
+              >
                 <t.icon className="w-6 h-6 mb-0.5" />
                 {t.label}
               </Link>

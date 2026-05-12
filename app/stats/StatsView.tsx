@@ -31,38 +31,42 @@ export default function StatsView() {
     const supabase = createClient();
     const weekStart = startOfWeek().toISOString();
 
-    const { data: weekW } = await supabase.from("workouts").select("id,body_part").gte("performed_at", weekStart);
-    const ids = (weekW ?? []).map((w) => w.id);
+    const [weekWRes, wsRes, pbRes] = await Promise.all([
+      supabase.from("workouts").select("id,body_part").gte("performed_at", weekStart),
+      supabase
+        .from("workouts")
+        .select("id,set_type,body_part,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name), exercise_b:exercises!workouts_exercise_id_b_fkey(name)")
+        .order("performed_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("personal_bests")
+        .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name,body_part)")
+        .order("achieved_at", { ascending: false }),
+    ]);
+
+    const weekW = weekWRes.data ?? [];
+    const ids = weekW.map((w) => w.id);
     let counts: Record<string, number> = {};
     if (ids.length) {
       const { data: ws } = await supabase.from("workout_sets").select("workout_id").in("workout_id", ids);
       for (const s of ws ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
     }
     const vol: Record<string, number> = {};
-    for (const w of weekW ?? []) vol[w.body_part] = (vol[w.body_part] ?? 0) + (counts[w.id] ?? 0);
+    for (const w of weekW) vol[w.body_part] = (vol[w.body_part] ?? 0) + (counts[w.id] ?? 0);
     setWeekVolume(vol);
 
-    const { data: ws } = await supabase
-      .from("workouts")
-      .select("id,set_type,body_part,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name), exercise_b:exercises!workouts_exercise_id_b_fkey(name)")
-      .order("performed_at", { ascending: false })
-      .limit(50);
-    if (ws) {
+    const ws = wsRes.data ?? [];
+    if (ws.length) {
       const wIds = ws.map((w: any) => w.id);
       const { data: sets } = await supabase.from("workout_sets").select("*").in("workout_id", wIds).order("set_index");
       const byW: Record<string, WorkoutSet[]> = {};
       for (const s of (sets ?? []) as WorkoutSet[]) (byW[s.workout_id] ||= []).push(s);
       setWorkouts(ws.map((w: any) => ({ ...w, sets: byW[w.id] ?? [] })) as WorkoutRow[]);
-    }
+    } else { setWorkouts([]); }
 
-    const { data: pb } = await supabase
-      .from("personal_bests")
-      .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name,body_part)")
-      .order("achieved_at", { ascending: false });
-    if (pb) {
-      const seen = new Set<string>();
-      setPbs(pb.filter((p: any) => { if (seen.has(p.exercise_id)) return false; seen.add(p.exercise_id); return true; }));
-    }
+    const pb = pbRes.data ?? [];
+    const seen = new Set<string>();
+    setPbs(pb.filter((p: any) => { if (seen.has(p.exercise_id)) return false; seen.add(p.exercise_id); return true; }));
 
     setLoading(false);
   }
@@ -82,7 +86,7 @@ export default function StatsView() {
         <span className="w-6" />
       </header>
 
-      <div className="grid grid-cols-3 bg-card border border-border rounded-xl p-1 mb-5">
+      <div className="grid grid-cols-3 bg-surface border border-border rounded-xl p-1 mb-5">
         <TabBtn active={tab === "weekly"} onClick={() => setTab("weekly")}>今週</TabBtn>
         <TabBtn active={tab === "history"} onClick={() => setTab("history")}>履歴</TabBtn>
         <TabBtn active={tab === "pb"} onClick={() => setTab("pb")}>自己ベスト</TabBtn>
@@ -95,7 +99,7 @@ export default function StatsView() {
           <h3 className="text-sm tracking-widest text-muted mb-2">部位別ボリューム</h3>
           <div className="grid grid-cols-2 gap-2">
             {BODY_PARTS.map((bp) => (
-              <div key={bp} className="bg-card border border-border rounded-xl p-3 flex items-center justify-between">
+              <div key={bp} className="bg-white border border-border rounded-xl p-3 flex items-center justify-between">
                 <span className="font-medium">{bp}</span>
                 <span className="text-xl font-bold">{weekVolume[bp] ?? 0}<span className="text-xs text-muted ml-1">セット</span></span>
               </div>
@@ -108,14 +112,14 @@ export default function StatsView() {
         <div className="space-y-2">
           {workouts.length === 0 && <p className="text-muted text-sm">記録がありません</p>}
           {workouts.map((w) => (
-            <div key={w.id} className="bg-card border border-border rounded-xl p-4">
+            <div key={w.id} className="bg-white border border-border rounded-xl p-4">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-xs text-muted">{fmtDate(w.performed_at)}</div>
                   <div className="font-bold mt-0.5">{w.exercise?.name ?? "?"}{w.exercise_b ? ` ＋ ${w.exercise_b.name}` : ""}</div>
-                  <span className="inline-block mt-1 text-[10px] tracking-wider bg-bg border border-border rounded px-2 py-0.5">{SET_TYPE_LABELS[w.set_type]}</span>
+                  <span className="inline-block mt-1 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">{SET_TYPE_LABELS[w.set_type]}</span>
                 </div>
-                <button onClick={() => deleteWorkout(w.id)} className="text-red-400 text-sm">削除</button>
+                <button onClick={() => deleteWorkout(w.id)} className="text-red-500 text-sm">削除</button>
               </div>
               <ul className="mt-2 space-y-1 text-sm">
                 {w.sets.map((s) => (
@@ -141,7 +145,7 @@ export default function StatsView() {
         <div className="space-y-2">
           {pbs.length === 0 && <p className="text-muted text-sm">自己ベストはまだありません</p>}
           {pbs.map((p, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+            <div key={i} className="bg-white border border-border rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="font-bold">{p.exercise?.name ?? "?"}</div>
                 <div className="text-xs text-muted">{p.exercise?.body_part}</div>
@@ -159,5 +163,5 @@ export default function StatsView() {
 }
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button onClick={onClick} className={`py-2 text-xs rounded-lg ${active ? "bg-white text-black font-bold" : "text-muted"}`}>{children}</button>;
+  return <button onClick={onClick} className={`py-2 text-xs rounded-lg ${active ? "bg-white shadow-sm font-bold text-ink" : "text-muted"}`}>{children}</button>;
 }

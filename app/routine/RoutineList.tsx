@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ExercisePicker from "@/components/ExercisePicker";
 import type { Exercise, Routine, RoutineItem, SetType } from "@/lib/types";
@@ -9,6 +10,7 @@ import { SET_TYPE_LABELS } from "@/lib/types";
 type FullRoutine = Routine & { items: (RoutineItem & { exercise?: Exercise; exercise_b?: Exercise | null })[] };
 
 export default function RoutineList() {
+  const router = useRouter();
   const [routines, setRoutines] = useState<FullRoutine[]>([]);
   const [editing, setEditing] = useState<FullRoutine | null>(null);
   const [creating, setCreating] = useState(false);
@@ -21,16 +23,19 @@ export default function RoutineList() {
     const supabase = createClient();
     const { data: rs } = await supabase.from("routines").select("*").order("created_at", { ascending: false });
     if (!rs) { setRoutines([]); setLoading(false); return; }
-    const full: FullRoutine[] = [];
-    for (const r of rs as Routine[]) {
+
+    // Fetch all items in one query
+    const ids = (rs as Routine[]).map((r) => r.id);
+    let itemsByRoutine: Record<string, any[]> = {};
+    if (ids.length) {
       const { data: items } = await supabase
         .from("routine_items")
         .select("*, exercise:exercises!routine_items_exercise_id_fkey(*), exercise_b:exercises!routine_items_exercise_id_b_fkey(*)")
-        .eq("routine_id", r.id)
+        .in("routine_id", ids)
         .order("position");
-      full.push({ ...r, items: (items as any) ?? [] });
+      for (const it of (items ?? []) as any[]) (itemsByRoutine[it.routine_id] ||= []).push(it);
     }
-    setRoutines(full);
+    setRoutines((rs as Routine[]).map((r) => ({ ...r, items: itemsByRoutine[r.id] ?? [] })));
     setLoading(false);
   }
 
@@ -39,6 +44,10 @@ export default function RoutineList() {
     const supabase = createClient();
     await supabase.from("routines").delete().eq("id", id);
     load();
+  }
+
+  function startRoutine(id: string) {
+    router.push(`/record?routine=${id}`);
   }
 
   if (editing || creating) {
@@ -55,33 +64,33 @@ export default function RoutineList() {
       <header className="flex items-center justify-between mb-4">
         <Link href="/" className="text-2xl">‹</Link>
         <h1 className="font-bold">ルーティン</h1>
-        <button onClick={() => setCreating(true)} className="text-sm text-zinc-300">＋ 新規</button>
+        <button onClick={() => setCreating(true)} className="text-sm text-ink font-semibold">＋ 新規</button>
       </header>
 
       {loading && <p className="text-muted text-sm">読み込み中...</p>}
       {!loading && routines.length === 0 && (
-        <div className="bg-card border border-border rounded-xl p-6 text-center text-muted text-sm">
+        <div className="bg-white border border-border rounded-xl p-6 text-center text-muted text-sm">
           ルーティンがまだありません。<br/>右上の「＋ 新規」から作成しよう。
         </div>
       )}
 
       <div className="space-y-3">
         {routines.map((r) => (
-          <div key={r.id} className="bg-card border border-border rounded-xl p-4">
+          <div key={r.id} className="bg-white border border-border rounded-xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold">{r.name}</h3>
+              <h3 className="font-bold text-lg">{r.name}</h3>
               <div className="flex gap-3 text-sm">
-                <button onClick={() => setEditing(r)} className="text-zinc-300">編集</button>
-                <button onClick={() => deleteRoutine(r.id)} className="text-red-400">削除</button>
+                <button onClick={() => setEditing(r)} className="text-ink">編集</button>
+                <button onClick={() => deleteRoutine(r.id)} className="text-red-500">削除</button>
               </div>
             </div>
             {r.items.length === 0 ? (
               <p className="text-xs text-muted">種目未登録</p>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="space-y-1.5 mb-3">
                 {r.items.map((it) => (
                   <li key={it.id} className="text-sm flex items-center gap-2">
-                    <span className="text-[9px] tracking-wider bg-bg border border-border rounded px-1.5 py-0.5">{SET_TYPE_LABELS[it.set_type]}</span>
+                    <span className="text-[9px] tracking-wider bg-surface border border-border rounded px-1.5 py-0.5">{SET_TYPE_LABELS[it.set_type]}</span>
                     <span>{it.exercise?.name ?? "?"}</span>
                     {it.set_type === "super" && it.exercise_b && <span className="text-muted">＋ {it.exercise_b.name}</span>}
                     <span className="text-muted text-xs ml-auto">×{it.target_sets}セット</span>
@@ -89,6 +98,13 @@ export default function RoutineList() {
                 ))}
               </ul>
             )}
+            <button
+              onClick={() => startRoutine(r.id)}
+              disabled={r.items.length === 0}
+              className="w-full bg-ink text-white font-bold rounded-xl py-2.5 disabled:opacity-30"
+            >
+              このルーティンで開始 →
+            </button>
           </div>
         ))}
       </div>
@@ -163,11 +179,11 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
       <header className="flex items-center justify-between mb-4">
         <button onClick={onClose} className="text-2xl">‹</button>
         <h1 className="font-bold">{isNew ? "ルーティン新規" : "ルーティン編集"}</h1>
-        <button onClick={save} disabled={saving} className="text-sm text-zinc-300 disabled:opacity-50">{saving ? "保存中" : "保存"}</button>
+        <button onClick={save} disabled={saving} className="text-sm text-ink font-semibold disabled:opacity-50">{saving ? "保存中" : "保存"}</button>
       </header>
 
       <input
-        className="w-full bg-card border border-border rounded-xl px-4 py-3 outline-none mb-5"
+        className="w-full bg-white border border-border rounded-xl px-4 py-3 outline-none mb-5 focus:border-ink"
         placeholder="ルーティン名（例: 胸の日）"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -175,18 +191,18 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
 
       <div className="space-y-3 mb-4">
         {items.map((it, i) => (
-          <div key={i} className="bg-card border border-border rounded-xl p-3 space-y-3">
+          <div key={i} className="bg-white border border-border rounded-xl p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="grid grid-cols-3 bg-bg border border-border rounded-lg p-1 flex-1">
+              <div className="grid grid-cols-3 bg-surface border border-border rounded-lg p-1 flex-1">
                 {(["normal", "drop", "super"] as SetType[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => updateItem(i, { set_type: t })}
-                    className={`py-1.5 text-[10px] tracking-wider rounded ${it.set_type === t ? "bg-white text-black font-bold" : "text-muted"}`}
+                    className={`py-1.5 text-[10px] tracking-wider rounded ${it.set_type === t ? "bg-white shadow-sm font-bold" : "text-muted"}`}
                   >{SET_TYPE_LABELS[t]}</button>
                 ))}
               </div>
-              <button onClick={() => removeItem(i)} className="text-red-400 ml-3 text-sm">削除</button>
+              <button onClick={() => removeItem(i)} className="text-red-500 ml-3 text-sm">削除</button>
             </div>
             <ExercisePicker value={it.exercise} onChange={(e) => updateItem(i, { exercise: e })} label="種目" />
             {it.set_type === "super" && (
@@ -199,7 +215,7 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
                 inputMode="numeric"
                 value={it.target_sets}
                 onChange={(e) => updateItem(i, { target_sets: Math.max(1, Number(e.target.value) || 1) })}
-                className="w-20 bg-bg border border-border rounded-lg px-3 py-1.5 outline-none text-right"
+                className="w-20 bg-white border border-border rounded-lg px-3 py-1.5 outline-none text-right"
               />
               <span className="text-sm text-muted">セット</span>
             </div>
@@ -207,7 +223,7 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
         ))}
       </div>
 
-      <button onClick={addItem} className="w-full border border-dashed border-border rounded-xl py-3 text-muted">
+      <button onClick={addItem} className="w-full border border-dashed border-border rounded-xl py-3 text-muted hover:bg-surface">
         ＋ 項目を追加
       </button>
     </main>
