@@ -14,6 +14,8 @@ type SetRow = {
   weight_b?: string; reps_b?: string;
 };
 
+type LastSetHint = { weight: number; reps: number };
+
 type Entry = {
   uid: string;
   setType: SetType;
@@ -22,6 +24,7 @@ type Entry = {
   sets: SetRow[];
   memo: string;
   pb: { weight: number; reps: number } | null;
+  lastSession: LastSetHint[] | null; // 前回セッション、set_index順
 };
 
 const newUid = () => Math.random().toString(36).slice(2, 9);
@@ -33,7 +36,7 @@ const empty = (t: SetType): SetRow => t === "drop"
 
 const makeEntry = (t: SetType = "normal", n = 3): Entry => ({
   uid: newUid(), setType: t, exercise: null, exerciseB: null,
-  sets: Array.from({ length: n }, () => empty(t)), memo: "", pb: null,
+  sets: Array.from({ length: n }, () => empty(t)), memo: "", pb: null, lastSession: null,
 });
 
 export default function RecordForm() {
@@ -48,12 +51,46 @@ function RecordFormInner() {
   const router = useRouter();
   const params = useSearchParams();
   const routineId = params.get("routine");
-  const [entries, setEntries] = useState<Entry[]>([makeEntry()]);
+  // デフォルトで4種目分のカードを準備
+  const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(), makeEntry(), makeEntry(), makeEntry()]);
   const [pbBeaten, setPbBeaten] = useState<{ exerciseName: string; weight: number; reps: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingRoutine, setLoadingRoutine] = useState(!!routineId);
 
-  // Load routine items
+  // Helper: 指定種目の自己ベストと前回セッションを取得
+  async function fetchExerciseContext(exerciseId: string) {
+    const supabase = createClient();
+    const [pbRes, lastWRes] = await Promise.all([
+      supabase
+        .from("personal_bests")
+        .select("weight,reps")
+        .eq("exercise_id", exerciseId)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("workouts")
+        .select("id")
+        .eq("exercise_id", exerciseId)
+        .order("performed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const pb = pbRes.data ? { weight: Number(pbRes.data.weight), reps: Number(pbRes.data.reps) } : null;
+    let lastSession: LastSetHint[] | null = null;
+    if (lastWRes.data) {
+      const { data: sets } = await supabase
+        .from("workout_sets")
+        .select("set_index,weight,reps")
+        .eq("workout_id", lastWRes.data.id)
+        .order("set_index");
+      if (sets && sets.length) {
+        lastSession = sets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }));
+      }
+    }
+    return { pb, lastSession };
+  }
+
+  // ルーティン読み込み
   useEffect(() => {
     if (!routineId) return;
     (async () => {
@@ -72,20 +109,12 @@ function RecordFormInner() {
           sets: Array.from({ length: it.target_sets || 3 }, () => empty(it.set_type)),
           memo: "",
           pb: null,
+          lastSession: null,
         }));
         setEntries(loaded);
-        // Load PB for each exercise in parallel
-        const pbs = await Promise.all(loaded.map(async (e) => {
-          if (!e.exercise) return null;
-          const { data } = await supabase
-            .from("personal_bests")
-            .select("weight,reps")
-            .eq("exercise_id", e.exercise.id)
-            .limit(1)
-            .maybeSingle();
-          return data ? { weight: Number(data.weight), reps: Number(data.reps) } : null;
-        }));
-        setEntries((prev) => prev.map((e, i) => ({ ...e, pb: pbs[i] })));
+        // 各種目のPB＋前回履歴を並列取得
+        const ctxs = await Promise.all(loaded.map((e) => (e.exercise ? fetchExerciseContext(e.exercise.id) : Promise.resolve({ pb: null, lastSession: null }))));
+        setEntries((prev) => prev.map((e, i) => ({ ...e, pb: ctxs[i].pb, lastSession: ctxs[i].lastSession })));
       }
       setLoadingRoutine(false);
     })();
@@ -100,16 +129,10 @@ function RecordFormInner() {
   function addEntry() { setEntries((prev) => [...prev, makeEntry()]); }
 
   async function onExerciseChange(uid: string, ex: Exercise | null) {
-    updateEntry(uid, { exercise: ex });
-    if (!ex) { updateEntry(uid, { pb: null }); return; }
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("personal_bests")
-      .select("weight,reps")
-      .eq("exercise_id", ex.id)
-      .limit(1)
-      .maybeSingle();
-    updateEntry(uid, { pb: data ? { weight: Number(data.weight), reps: Number(data.reps) } : null });
+    updateEntry(uid, { exercise: ex, pb: null, lastSession: null });
+    if (!ex) return;
+    const { pb, lastSession } = await fetchExerciseContext(ex.id);
+    updateEntry(uid, { pb, lastSession });
   }
 
   async function saveAll() {
@@ -156,7 +179,6 @@ function RecordFormInner() {
         const { error: serr } = await supabase.from("workout_sets").insert(rows);
         if (serr) throw serr;
 
-        // PB check for this entry
         let bestScore = 0, bw = 0, br = 0;
         for (const s of goodSets) {
           const sc = setScore(Number(s.weight), Number(s.reps));
@@ -270,7 +292,7 @@ function EntryCard({
     <div className="bg-white border border-border rounded-2xl p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs tracking-widest text-muted">#{index}</span>
-        {canRemove && <button onClick={onRemove} className="text-red-500 text-sm">この種目を削除</button>}
+        {canRemove && <button onClick={onRemove} className="text-red-500 text-xs">削除</button>}
       </div>
 
       <ExercisePicker value={entry.exercise} onChange={onChangeExercise} label="" />
@@ -315,6 +337,7 @@ function EntryCard({
             onRemove={() => removeSet(i)}
             canRemove={entry.sets.length > 1}
             exerciseBName={entry.exerciseB?.name}
+            lastHint={entry.lastSession?.[i] ?? null}
           />
         ))}
         <button type="button" onClick={addSet} className="w-full border border-dashed border-border rounded-xl py-2 text-muted text-sm hover:bg-surface">
@@ -339,11 +362,12 @@ function EntryCard({
 }
 
 function SetRowInput({
-  index, setType, row, onChange, onRemove, canRemove, exerciseBName,
+  index, setType, row, onChange, onRemove, canRemove, exerciseBName, lastHint,
 }: {
   index: number; setType: SetType; row: SetRow;
   onChange: (p: Partial<SetRow>) => void; onRemove: () => void; canRemove: boolean;
   exerciseBName?: string;
+  lastHint?: LastSetHint | null;
 }) {
   return (
     <div className="bg-surface border border-border rounded-xl p-2.5">
@@ -354,6 +378,11 @@ function SetRowInput({
         <NumberInput value={row.reps} onChange={(v) => onChange({ reps: v })} suffix="回" placeholder="5" />
         <button onClick={onRemove} disabled={!canRemove} className="text-muted disabled:opacity-30 ml-1">×</button>
       </div>
+      {lastHint && (
+        <div className="pl-7 mt-1 text-[10px] text-muted">
+          前回 {lastHint.weight}kg × {lastHint.reps}回
+        </div>
+      )}
       {setType === "drop" && (
         <div className="flex items-center gap-2 mt-1.5 pl-7">
           <span className="text-[10px] text-muted">↓2段目</span>
