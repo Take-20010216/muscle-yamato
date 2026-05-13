@@ -67,6 +67,27 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
     }
   }
 
+  // 既存の種目とぶつからないデフォルト種目だけを一括追加
+  async function addDefaults() {
+    setSeeding(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const existingNames = new Set(exercises.map((e) => `${e.body_part}::${e.name}`));
+      const rows = DEFAULT_EXERCISES
+        .filter((d) => !existingNames.has(`${d.body_part}::${d.name}`))
+        .map((d) => ({ user_id: user.id, name: d.name, body_part: d.body_part }));
+      if (rows.length === 0) {
+        alert("追加できる新しいデフォルト種目はありません");
+      } else {
+        await supabase.from("exercises").insert(rows);
+        await load();
+        alert(`${rows.length}件のデフォルト種目を追加しました`);
+      }
+    } finally { setSeeding(false); }
+  }
+
   async function deleteExercise(id: string) {
     if (!confirm("この種目を削除しますか？関連する記録もすべて削除されます。")) return;
     const supabase = createClient();
@@ -125,12 +146,21 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
             </ul>
 
             {!creating ? (
-              <button
-                onClick={() => setCreating(true)}
-                className="w-full border border-dashed border-border rounded-xl py-3 text-muted hover:bg-surface"
-              >
-                ＋ 新しい種目を追加
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={addDefaults}
+                  disabled={seeding}
+                  className="w-full btn-metallic rounded-xl py-3 text-sm disabled:opacity-50"
+                >
+                  {seeding ? "追加中..." : "💪 デフォルト種目を一括追加"}
+                </button>
+                <button
+                  onClick={() => setCreating(true)}
+                  className="w-full border border-dashed border-border rounded-xl py-3 text-muted hover:bg-surface"
+                >
+                  ＋ 新しい種目を追加
+                </button>
+              </div>
             ) : (
               <div className="space-y-2 bg-surface p-3 rounded-xl border border-border">
                 <input

@@ -13,10 +13,10 @@ alter table public.routine_items drop constraint if exists routine_items_set_typ
 alter table public.routine_items add constraint routine_items_set_type_check
   check (set_type in ('normal', 'drop', 'super', 'no_weight'));
 
--- personal_bests ビューを no_weight 対応に更新
--- no_weight の場合: スコア = reps（最大回数）
--- それ以外: スコア = weight * reps
-create or replace view public.personal_bests as
+-- personal_bests ビューを no_weight 対応に作り直し
+-- 列構成を変えるので一度DROPしてCREATEする
+drop view if exists public.personal_bests;
+create view public.personal_bests as
 select
   w.user_id,
   w.exercise_id,
