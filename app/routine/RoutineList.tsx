@@ -101,7 +101,7 @@ export default function RoutineList() {
             <button
               onClick={() => startRoutine(r.id)}
               disabled={r.items.length === 0}
-              className="w-full bg-ink text-white font-bold rounded-xl py-2.5 disabled:opacity-30"
+              className="w-full btn-metallic rounded-xl py-2.5 disabled:opacity-30"
             >
               このルーティンで開始 →
             </button>
@@ -193,12 +193,12 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
         {items.map((it, i) => (
           <div key={i} className="bg-white border border-border rounded-xl p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="grid grid-cols-3 bg-surface border border-border rounded-lg p-1 flex-1">
-                {(["normal", "drop", "super"] as SetType[]).map((t) => (
+              <div className="grid grid-cols-4 bg-surface border border-border rounded-lg p-1 flex-1 gap-0.5">
+                {(["normal", "drop", "super", "no_weight"] as SetType[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => updateItem(i, { set_type: t })}
-                    className={`py-1.5 text-[10px] tracking-wider rounded ${it.set_type === t ? "bg-white shadow-sm font-bold" : "text-muted"}`}
+                    className={`py-1.5 text-[9px] tracking-wider rounded ${it.set_type === t ? "tab-metallic-active" : "text-muted"}`}
                   >{SET_TYPE_LABELS[t]}</button>
                 ))}
               </div>

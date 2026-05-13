@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { BodyPart, Exercise } from "@/lib/types";
 import { BODY_PARTS } from "@/lib/types";
+import { DEFAULT_EXERCISES } from "@/lib/defaults";
 
 type Props = {
   value: Exercise | null;
@@ -11,6 +12,8 @@ type Props = {
   defaultBodyPart?: BodyPart;
 };
 
+let seedAttempted = false; // 同一セッション内で複数回シードしない
+
 export default function ExercisePicker({ value, onChange, label = "種目", defaultBodyPart = "胸" }: Props) {
   const [open, setOpen] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -18,12 +21,31 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
   const [newName, setNewName] = useState("");
   const [newBodyPart, setNewBodyPart] = useState<BodyPart>(defaultBodyPart);
   const [filter, setFilter] = useState<BodyPart | "all">("all");
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => { if (open) load(); }, [open]);
 
   async function load() {
     const supabase = createClient();
     const { data } = await supabase.from("exercises").select("*").order("created_at", { ascending: false });
+
+    // 初回利用：種目0件ならデフォルト4種目×6部位をシード
+    if (data && data.length === 0 && !seedAttempted) {
+      seedAttempted = true;
+      setSeeding(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const rows = DEFAULT_EXERCISES.map((d) => ({
+            user_id: user.id, name: d.name, body_part: d.body_part,
+          }));
+          await supabase.from("exercises").insert(rows);
+          const { data: reload } = await supabase.from("exercises").select("*").order("created_at", { ascending: false });
+          if (reload) setExercises(reload as Exercise[]);
+        }
+      } finally { setSeeding(false); }
+      return;
+    }
     if (data) setExercises(data as Exercise[]);
   }
 
@@ -78,6 +100,10 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
               <button onClick={() => setOpen(false)} className="text-muted">閉じる</button>
             </div>
 
+            {seeding && (
+              <p className="text-muted text-sm mb-3">デフォルト種目を準備中...</p>
+            )}
+
             <div className="flex gap-2 mb-3 overflow-x-auto">
               <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>すべて</FilterChip>
               {BODY_PARTS.map((b) => (
@@ -95,7 +121,7 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
                   <button onClick={() => deleteExercise(ex.id)} className="text-red-500 text-sm ml-3">削除</button>
                 </li>
               ))}
-              {filtered.length === 0 && <p className="text-muted text-sm">種目が登録されていません</p>}
+              {!seeding && filtered.length === 0 && <p className="text-muted text-sm">種目が登録されていません</p>}
             </ul>
 
             {!creating ? (
@@ -126,7 +152,7 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setCreating(false)} className="flex-1 border border-border rounded-lg py-2">キャンセル</button>
-                  <button type="button" onClick={createExercise} className="flex-1 bg-ink text-white font-bold rounded-lg py-2">追加</button>
+                  <button type="button" onClick={createExercise} className="flex-1 btn-metallic rounded-lg py-2">追加</button>
                 </div>
               </div>
             )}

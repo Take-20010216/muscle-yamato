@@ -40,7 +40,7 @@ export default function StatsView() {
         .limit(50),
       supabase
         .from("personal_bests")
-        .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name,body_part)")
+        .select("weight,reps,set_type,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name,body_part)")
         .order("achieved_at", { ascending: false }),
     ]);
 
@@ -125,7 +125,9 @@ export default function StatsView() {
                 {w.sets.map((s) => (
                   <li key={s.id} className="flex items-center gap-2">
                     <span className="text-muted w-6">{s.set_index}</span>
-                    <span>{s.weight}kg × {s.reps}回</span>
+                    <span>
+                      {w.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
+                    </span>
                     {w.set_type === "drop" && s.drop_weight != null && (
                       <span className="text-muted text-xs">→ {s.drop_weight}kg × {s.drop_reps}回</span>
                     )}
@@ -151,7 +153,9 @@ export default function StatsView() {
                 <div className="text-xs text-muted">{p.exercise?.body_part}</div>
               </div>
               <div className="text-right">
-                <div className="text-xl font-bold">{p.weight}kg × {p.reps}回</div>
+                <div className="text-xl font-bold">
+                  {p.set_type === "no_weight" ? `${p.reps}回` : `${p.weight}kg × ${p.reps}回`}
+                </div>
                 <div className="text-[10px] text-muted">{p.achieved_at.slice(0, 10).replace(/-/g, ".")}</div>
               </div>
             </div>

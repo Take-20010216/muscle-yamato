@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ExercisePicker from "@/components/ExercisePicker";
+import RestTimer from "@/components/RestTimer";
 import type { Exercise, SetType } from "@/lib/types";
 import { SET_TYPE_HINTS, SET_TYPE_LABELS } from "@/lib/types";
 import { setScore } from "@/lib/utils";
@@ -12,9 +13,10 @@ type SetRow = {
   weight: string; reps: string;
   drop_weight?: string; drop_reps?: string;
   weight_b?: string; reps_b?: string;
+  _committed?: boolean; // タイマー自動起動済みフラグ
 };
 
-type LastSetHint = { weight: number; reps: number };
+type LastSetHint = { weight: number; reps: number; setType?: SetType };
 
 type Entry = {
   uid: string;
@@ -23,8 +25,8 @@ type Entry = {
   exerciseB: Exercise | null;
   sets: SetRow[];
   memo: string;
-  pb: { weight: number; reps: number } | null;
-  lastSession: LastSetHint[] | null; // 前回セッション、set_index順
+  pb: { weight: number; reps: number; setType?: SetType } | null;
+  lastSession: LastSetHint[] | null;
 };
 
 const newUid = () => Math.random().toString(36).slice(2, 9);
@@ -51,13 +53,23 @@ function RecordFormInner() {
   const router = useRouter();
   const params = useSearchParams();
   const routineId = params.get("routine");
-  // デフォルトで4種目分のカードを準備
   const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(), makeEntry(), makeEntry(), makeEntry()]);
-  const [pbBeaten, setPbBeaten] = useState<{ exerciseName: string; weight: number; reps: number } | null>(null);
+  const [pbBeaten, setPbBeaten] = useState<{ exerciseName: string; weight: number; reps: number; setType: SetType } | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingRoutine, setLoadingRoutine] = useState(!!routineId);
+  const [timerTrigger, setTimerTrigger] = useState<number | null>(null);
+  const [defaultRest, setDefaultRest] = useState<number>(90);
 
-  // Helper: 指定種目の自己ベストと前回セッションを取得
+  // localStorage で休憩時間を保存
+  useEffect(() => {
+    const v = typeof window !== "undefined" ? localStorage.getItem("rest_seconds") : null;
+    if (v) setDefaultRest(Number(v) || 90);
+  }, []);
+  function changeRest(v: number) {
+    setDefaultRest(v);
+    try { localStorage.setItem("rest_seconds", String(v)); } catch {}
+  }
+
   async function fetchExerciseContext(exerciseId: string) {
     const supabase = createClient();
     const [pbRes, lastWRes] = await Promise.all([
@@ -69,7 +81,7 @@ function RecordFormInner() {
         .maybeSingle(),
       supabase
         .from("workouts")
-        .select("id")
+        .select("id,set_type")
         .eq("exercise_id", exerciseId)
         .order("performed_at", { ascending: false })
         .limit(1)
@@ -77,20 +89,21 @@ function RecordFormInner() {
     ]);
     const pb = pbRes.data ? { weight: Number(pbRes.data.weight), reps: Number(pbRes.data.reps) } : null;
     let lastSession: LastSetHint[] | null = null;
+    let lastSetType: SetType | undefined;
     if (lastWRes.data) {
+      lastSetType = lastWRes.data.set_type as SetType;
       const { data: sets } = await supabase
         .from("workout_sets")
         .select("set_index,weight,reps")
         .eq("workout_id", lastWRes.data.id)
         .order("set_index");
       if (sets && sets.length) {
-        lastSession = sets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }));
+        lastSession = sets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps), setType: lastSetType }));
       }
     }
-    return { pb, lastSession };
+    return { pb: pb ? { ...pb, setType: lastSetType } : null, lastSession };
   }
 
-  // ルーティン読み込み
   useEffect(() => {
     if (!routineId) return;
     (async () => {
@@ -112,7 +125,6 @@ function RecordFormInner() {
           lastSession: null,
         }));
         setEntries(loaded);
-        // 各種目のPB＋前回履歴を並列取得
         const ctxs = await Promise.all(loaded.map((e) => (e.exercise ? fetchExerciseContext(e.exercise.id) : Promise.resolve({ pb: null, lastSession: null }))));
         setEntries((prev) => prev.map((e, i) => ({ ...e, pb: ctxs[i].pb, lastSession: ctxs[i].lastSession })));
       }
@@ -135,8 +147,17 @@ function RecordFormInner() {
     updateEntry(uid, { pb, lastSession });
   }
 
+  // セットが「完了入力」されたらタイマー起動
+  function onSetCommit() {
+    setTimerTrigger(defaultRest);
+  }
+
   async function saveAll() {
-    const valid = entries.filter((e) => e.exercise && e.sets.some((s) => Number(s.weight) > 0 && Number(s.reps) > 0));
+    const valid = entries.filter((e) => {
+      if (!e.exercise) return false;
+      if (e.setType === "no_weight") return e.sets.some((s) => Number(s.reps) > 0);
+      return e.sets.some((s) => Number(s.weight) > 0 && Number(s.reps) > 0);
+    });
     if (valid.length === 0) { alert("少なくとも1種目・1セットの記録が必要です"); return; }
     for (const e of valid) {
       if (e.setType === "super" && !e.exerciseB) { alert(`「${e.exercise?.name}」のスーパーセット用2種目目を選択してください`); return; }
@@ -148,7 +169,7 @@ function RecordFormInner() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("not signed in");
 
-      let beatenInfo: { exerciseName: string; weight: number; reps: number } | null = null;
+      let beatenInfo: { exerciseName: string; weight: number; reps: number; setType: SetType } | null = null;
 
       for (const e of valid) {
         const { data: w, error: werr } = await supabase
@@ -165,11 +186,13 @@ function RecordFormInner() {
           .single();
         if (werr) throw werr;
 
-        const goodSets = e.sets.filter((s) => Number(s.weight) > 0 && Number(s.reps) > 0);
+        const goodSets = e.sets.filter((s) =>
+          e.setType === "no_weight" ? Number(s.reps) > 0 : (Number(s.weight) > 0 && Number(s.reps) > 0)
+        );
         const rows = goodSets.map((s, idx) => ({
           workout_id: w.id,
           set_index: idx + 1,
-          weight: Number(s.weight),
+          weight: e.setType === "no_weight" ? 0 : Number(s.weight),
           reps: Number(s.reps),
           drop_weight: e.setType === "drop" ? Number(s.drop_weight || 0) || null : null,
           drop_reps: e.setType === "drop" ? Number(s.drop_reps || 0) || null : null,
@@ -181,12 +204,16 @@ function RecordFormInner() {
 
         let bestScore = 0, bw = 0, br = 0;
         for (const s of goodSets) {
-          const sc = setScore(Number(s.weight), Number(s.reps));
-          if (sc > bestScore) { bestScore = sc; bw = Number(s.weight); br = Number(s.reps); }
+          const w = e.setType === "no_weight" ? 0 : Number(s.weight);
+          const r = Number(s.reps);
+          const sc = e.setType === "no_weight" ? r : w * r;
+          if (sc > bestScore) { bestScore = sc; bw = w; br = r; }
         }
-        const beforeScore = e.pb ? setScore(e.pb.weight, e.pb.reps) : 0;
+        const beforeScore = e.pb
+          ? (e.setType === "no_weight" ? e.pb.reps : setScore(e.pb.weight, e.pb.reps))
+          : 0;
         if (bestScore > beforeScore && !beatenInfo) {
-          beatenInfo = { exerciseName: e.exercise!.name, weight: bw, reps: br };
+          beatenInfo = { exerciseName: e.exercise!.name, weight: bw, reps: br, setType: e.setType };
         }
       }
 
@@ -216,6 +243,19 @@ function RecordFormInner() {
         <button onClick={saveAll} disabled={saving} className="text-sm text-ink font-semibold disabled:opacity-50">{saving ? "保存中" : "保存"}</button>
       </header>
 
+      {/* 休憩時間プリセット選択 */}
+      <div className="mb-4 bg-white border border-border rounded-xl p-3 flex items-center gap-2">
+        <span className="text-xs text-muted">休憩</span>
+        {[60, 90, 120, 180].map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => changeRest(p)}
+            className={`flex-1 py-1.5 rounded-lg text-xs ${defaultRest === p ? "tab-metallic-active" : "bg-surface text-muted"}`}
+          >{p}秒</button>
+        ))}
+      </div>
+
       <div className="space-y-4">
         {entries.map((e, idx) => (
           <EntryCard
@@ -226,6 +266,7 @@ function RecordFormInner() {
             onChangeExercise={(ex) => onExerciseChange(e.uid, ex)}
             onRemove={() => removeEntry(e.uid)}
             canRemove={entries.length > 1}
+            onSetCommit={onSetCommit}
           />
         ))}
       </div>
@@ -240,10 +281,12 @@ function RecordFormInner() {
 
       <div className="grid grid-cols-2 gap-3 mt-6">
         <Link href="/" className="border border-border rounded-xl py-3 text-center font-medium">キャンセル</Link>
-        <button onClick={saveAll} disabled={saving} className="bg-ink text-white font-bold rounded-xl py-3 disabled:opacity-50">
+        <button onClick={saveAll} disabled={saving} className="btn-metallic rounded-xl py-3">
           {saving ? "保存中..." : "セッション終了"}
         </button>
       </div>
+
+      <RestTimer triggerSeconds={timerTrigger} onTriggered={() => setTimerTrigger(null)} />
 
       {pbBeaten && (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-6">
@@ -251,7 +294,9 @@ function RecordFormInner() {
             <div className="text-5xl mb-3">🏆</div>
             <div className="text-xl font-bold mb-1">自己ベスト更新！</div>
             <p className="text-muted text-sm mb-2">{pbBeaten.exerciseName}</p>
-            <p className="text-2xl font-bold">{pbBeaten.weight}kg × {pbBeaten.reps}回</p>
+            <p className="text-2xl font-bold">
+              {pbBeaten.setType === "no_weight" ? `${pbBeaten.reps}回` : `${pbBeaten.weight}kg × ${pbBeaten.reps}回`}
+            </p>
             <p className="text-muted text-sm mt-3">最高だ。次もこの調子で行こう。</p>
           </div>
         </div>
@@ -261,12 +306,13 @@ function RecordFormInner() {
 }
 
 function EntryCard({
-  index, entry, onChange, onChangeExercise, onRemove, canRemove,
+  index, entry, onChange, onChangeExercise, onRemove, canRemove, onSetCommit,
 }: {
   index: number; entry: Entry;
   onChange: (p: Partial<Entry>) => void;
   onChangeExercise: (ex: Exercise | null) => void;
   onRemove: () => void; canRemove: boolean;
+  onSetCommit: () => void;
 }) {
   function setType(t: SetType) {
     onChange({ setType: t, sets: entry.sets.map(() => empty(t)) });
@@ -274,19 +320,30 @@ function EntryCard({
   function updateSet(i: number, patch: Partial<SetRow>) {
     onChange({ sets: entry.sets.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) });
   }
+  function commitSet(i: number) {
+    const s = entry.sets[i];
+    if (s._committed) return;
+    onChange({ sets: entry.sets.map((x, idx) => (idx === i ? { ...x, _committed: true } : x)) });
+    onSetCommit();
+  }
   function addSet() { onChange({ sets: [...entry.sets, empty(entry.setType)] }); }
   function removeSet(i: number) { onChange({ sets: entry.sets.filter((_, idx) => idx !== i) }); }
 
   const bestNow = useMemo(() => {
     let best = 0; let bw = 0; let br = 0;
     for (const s of entry.sets) {
-      const w = Number(s.weight) || 0; const r = Number(s.reps) || 0;
-      if (w * r > best) { best = w * r; bw = w; br = r; }
+      const w = entry.setType === "no_weight" ? 0 : (Number(s.weight) || 0);
+      const r = Number(s.reps) || 0;
+      const sc = entry.setType === "no_weight" ? r : (w * r);
+      if (sc > best) { best = sc; bw = w; br = r; }
     }
     return { score: best, weight: bw, reps: br };
-  }, [entry.sets]);
+  }, [entry.sets, entry.setType]);
 
-  const beatsPb = entry.pb && bestNow.score > 0 && bestNow.score > setScore(entry.pb.weight, entry.pb.reps);
+  const beforeScore = entry.pb
+    ? (entry.setType === "no_weight" ? entry.pb.reps : setScore(entry.pb.weight, entry.pb.reps))
+    : 0;
+  const beatsPb = bestNow.score > 0 && bestNow.score > beforeScore;
 
   return (
     <div className="bg-white border border-border rounded-2xl p-4 shadow-sm">
@@ -297,13 +354,13 @@ function EntryCard({
 
       <ExercisePicker value={entry.exercise} onChange={onChangeExercise} label="" />
 
-      <div className="grid grid-cols-3 bg-surface border border-border rounded-xl p-1 mt-3">
-        {(["normal", "drop", "super"] as SetType[]).map((t) => (
+      <div className="grid grid-cols-4 bg-surface border border-border rounded-xl p-1 mt-3 gap-0.5">
+        {(["normal", "drop", "super", "no_weight"] as SetType[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setType(t)}
-            className={`py-2 text-xs tracking-wider rounded-lg ${entry.setType === t ? "bg-white shadow-sm font-bold" : "text-muted"}`}
+            className={`py-2 text-[10px] tracking-wider rounded-lg ${entry.setType === t ? "tab-metallic-active" : "text-muted"}`}
           >
             {SET_TYPE_LABELS[t]}
           </button>
@@ -321,7 +378,9 @@ function EntryCard({
         <div className="mt-3 bg-surface border border-border rounded-xl px-4 py-2 flex items-center justify-between">
           <span className="text-xs text-muted">自己ベスト</span>
           <span className="text-sm font-bold">
-            {entry.pb ? `${entry.pb.weight}kg × ${entry.pb.reps}回` : "未記録"}
+            {entry.pb
+              ? (entry.pb.setType === "no_weight" ? `${entry.pb.reps}回` : `${entry.pb.weight}kg × ${entry.pb.reps}回`)
+              : "未記録"}
           </span>
         </div>
       )}
@@ -334,6 +393,7 @@ function EntryCard({
             setType={entry.setType}
             row={s}
             onChange={(patch) => updateSet(i, patch)}
+            onCommit={() => commitSet(i)}
             onRemove={() => removeSet(i)}
             canRemove={entry.sets.length > 1}
             exerciseBName={entry.exerciseB?.name}
@@ -346,8 +406,8 @@ function EntryCard({
       </div>
 
       {beatsPb && (
-        <div className="mt-3 bg-ink text-white text-sm font-bold rounded-xl py-2 px-4 flex items-center justify-center gap-2">
-          🏆 自己ベスト更新中！{bestNow.weight}kg × {bestNow.reps}回
+        <div className="mt-3 btn-metallic rounded-xl py-2 px-4 flex items-center justify-center gap-2 text-sm">
+          🏆 自己ベスト更新中！{entry.setType === "no_weight" ? `${bestNow.reps}回` : `${bestNow.weight}kg × ${bestNow.reps}回`}
         </div>
       )}
 
@@ -362,25 +422,41 @@ function EntryCard({
 }
 
 function SetRowInput({
-  index, setType, row, onChange, onRemove, canRemove, exerciseBName, lastHint,
+  index, setType, row, onChange, onCommit, onRemove, canRemove, exerciseBName, lastHint,
 }: {
   index: number; setType: SetType; row: SetRow;
-  onChange: (p: Partial<SetRow>) => void; onRemove: () => void; canRemove: boolean;
+  onChange: (p: Partial<SetRow>) => void;
+  onCommit: () => void;
+  onRemove: () => void; canRemove: boolean;
   exerciseBName?: string;
   lastHint?: LastSetHint | null;
 }) {
+  const noWeight = setType === "no_weight";
+  const hasValues = noWeight ? Number(row.reps) > 0 : (Number(row.weight) > 0 && Number(row.reps) > 0);
+
   return (
     <div className="bg-surface border border-border rounded-xl p-2.5">
       <div className="flex items-center gap-2">
         <div className="w-5 text-center text-muted text-sm">{index}</div>
-        <NumberInput value={row.weight} onChange={(v) => onChange({ weight: v })} suffix="kg" placeholder="100" />
-        <span className="text-muted">×</span>
+        {!noWeight && (
+          <>
+            <NumberInput value={row.weight} onChange={(v) => onChange({ weight: v })} suffix="kg" placeholder="100" />
+            <span className="text-muted">×</span>
+          </>
+        )}
         <NumberInput value={row.reps} onChange={(v) => onChange({ reps: v })} suffix="回" placeholder="5" />
+        <button
+          type="button"
+          onClick={onCommit}
+          disabled={!hasValues || row._committed}
+          title={row._committed ? "タイマー起動済み" : "完了→タイマー起動"}
+          className={`px-2 py-1 rounded-md text-xs ${row._committed ? "bg-surface text-muted" : "btn-metallic"} disabled:opacity-30`}
+        >{row._committed ? "✓" : "⏱"}</button>
         <button onClick={onRemove} disabled={!canRemove} className="text-muted disabled:opacity-30 ml-1">×</button>
       </div>
       {lastHint && (
         <div className="pl-7 mt-1 text-[10px] text-muted">
-          前回 {lastHint.weight}kg × {lastHint.reps}回
+          前回 {lastHint.setType === "no_weight" ? `${lastHint.reps}回` : `${lastHint.weight}kg × ${lastHint.reps}回`}
         </div>
       )}
       {setType === "drop" && (

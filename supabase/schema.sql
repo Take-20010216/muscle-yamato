@@ -26,7 +26,7 @@ create index if not exists idx_exercises_user on public.exercises(user_id);
 create table if not exists public.workouts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  set_type text not null check (set_type in ('normal','drop','super')),
+  set_type text not null check (set_type in ('normal','drop','super','no_weight')),
   exercise_id uuid not null references public.exercises(id) on delete cascade,
   exercise_id_b uuid references public.exercises(id) on delete set null,
   body_part text not null,
@@ -60,7 +60,7 @@ create table if not exists public.routine_items (
   id uuid primary key default gen_random_uuid(),
   routine_id uuid not null references public.routines(id) on delete cascade,
   position int not null,
-  set_type text not null check (set_type in ('normal','drop','super')),
+  set_type text not null check (set_type in ('normal','drop','super','no_weight')),
   exercise_id uuid not null references public.exercises(id) on delete cascade,
   exercise_id_b uuid references public.exercises(id) on delete set null,
   target_sets int default 3
@@ -101,12 +101,13 @@ select
   w.exercise_id,
   s.weight,
   s.reps,
-  (s.weight * s.reps) as score,
+  (case when w.set_type = 'no_weight' then s.reps else s.weight * s.reps end) as score,
+  w.set_type,
   w.performed_at as achieved_at
 from public.workout_sets s
 join public.workouts w on w.id = s.workout_id
-where (s.weight * s.reps) = (
-  select max(s2.weight * s2.reps)
+where (case when w.set_type = 'no_weight' then s.reps else s.weight * s.reps end) = (
+  select max(case when w2.set_type = 'no_weight' then s2.reps else s2.weight * s2.reps end)
   from public.workout_sets s2
   join public.workouts w2 on w2.id = s2.workout_id
   where w2.user_id = w.user_id and w2.exercise_id = w.exercise_id

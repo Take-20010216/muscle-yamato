@@ -10,6 +10,7 @@ const SET_TYPE_BADGE: Record<SetType, string> = {
   normal: "NORMAL SET",
   drop: "DROP SET",
   super: "SUPER SET",
+  no_weight: "NO WEIGHT",
 };
 
 export default async function HomePage() {
@@ -85,7 +86,7 @@ export default async function HomePage() {
       <Link
         href="/record"
         prefetch={true}
-        className="block bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-900 text-white rounded-2xl px-5 py-5 font-bold text-lg flex items-center justify-between shadow-lg"
+        className="btn-metallic rounded-2xl px-5 py-5 text-lg flex items-center justify-between"
       >
         <span className="flex items-center gap-3">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-14h-7l0-6z"/></svg>

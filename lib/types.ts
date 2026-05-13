@@ -1,4 +1,4 @@
-export type SetType = "normal" | "drop" | "super";
+export type SetType = "normal" | "drop" | "super" | "no_weight";
 export type BodyPart = "胸" | "背中" | "脚" | "肩" | "腕" | "体幹" | "その他";
 
 export const BODY_PARTS: BodyPart[] = ["胸", "背中", "脚", "肩", "腕", "体幹", "その他"];
@@ -58,30 +58,16 @@ export type RoutineItem = {
   target_sets: number;
 };
 
-export type Post = {
-  id: string;
-  user_id: string;
-  body: string;
-  workout_id: string | null;
-  created_at: string;
-};
-
-export type Comment = {
-  id: string;
-  post_id: string;
-  user_id: string;
-  body: string;
-  created_at: string;
-};
-
 export const SET_TYPE_LABELS: Record<SetType, string> = {
   normal: "NORMAL SET",
   drop: "DROP SET",
   super: "SUPER SET",
+  no_weight: "NO WEIGHT",
 };
 
 export const SET_TYPE_HINTS: Record<SetType, string> = {
   normal: "通常のセットを記録します",
   drop: "1段目→2段目（重量を落として続行）を1セットとして記録します",
   super: "種目A→種目Bを連続で行うセットを記録します",
+  no_weight: "自重トレーニング。回数のみ記録します",
 };
