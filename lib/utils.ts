@@ -49,3 +49,9 @@ export function startOfWeek(d = new Date()): Date {
 export function setScore(weight: number, reps: number) {
   return weight * reps;
 }
+
+// performed_at(ISO/UTC) → "/sessions/[time]" 用スラッグ（分単位）
+// 例: "2026-05-14T01:30:45.000Z" → "2026-05-14T01-30"
+export function toSessionSlug(performedAt: string): string {
+  return performedAt.slice(0, 16).replace(":", "-");
+}

@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { fmtDate, startOfWeek } from "@/lib/utils";
+import { fmtDate, startOfWeek, toSessionSlug } from "@/lib/utils";
 import type { BodyPart, SetType } from "@/lib/types";
 import { BODY_PARTS } from "@/lib/types";
-
-export const dynamic = "force-dynamic";
 
 const SET_TYPE_BADGE: Record<SetType, string> = {
   normal: "NORMAL SET",
@@ -17,59 +16,6 @@ export default async function HomePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-
-  const weekStart = startOfWeek().toISOString();
-
-  // Parallelize all top-level queries
-  const [workoutsRes, weekWRes, pbsRes] = await Promise.all([
-    supabase
-      .from("workouts")
-      .select("id,set_type,body_part,performed_at,exercise_id, exercise:exercises!workouts_exercise_id_fkey(name)")
-      .order("performed_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("workouts")
-      .select("id,body_part")
-      .gte("performed_at", weekStart),
-    supabase
-      .from("personal_bests")
-      .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name)")
-      .gte("achieved_at", weekStart)
-      .order("achieved_at", { ascending: false })
-      .limit(3),
-  ]);
-
-  const workouts = workoutsRes.data ?? [];
-  const weekWorkouts = weekWRes.data ?? [];
-  const pbs = pbsRes.data ?? [];
-
-  // Fetch set counts in one query (combining ids from both)
-  const allIds = Array.from(new Set([...workouts.map((w) => w.id), ...weekWorkouts.map((w) => w.id)]));
-  let setCounts: Record<string, number> = {};
-  if (allIds.length) {
-    const { data: sets } = await supabase
-      .from("workout_sets")
-      .select("workout_id")
-      .in("workout_id", allIds);
-    for (const s of sets ?? []) setCounts[s.workout_id] = (setCounts[s.workout_id] ?? 0) + 1;
-  }
-
-  // Group history by performed minute
-  const grouped: Record<string, { date: string; bodyParts: Set<BodyPart>; exerciseIds: Set<string>; setCount: number; setType: SetType }> = {};
-  for (const w of workouts) {
-    const key = w.performed_at.slice(0, 16);
-    if (!grouped[key]) grouped[key] = { date: w.performed_at, bodyParts: new Set(), exerciseIds: new Set(), setCount: 0, setType: w.set_type };
-    grouped[key].bodyParts.add(w.body_part as BodyPart);
-    grouped[key].exerciseIds.add(w.exercise_id);
-    grouped[key].setCount += setCounts[w.id] ?? 0;
-  }
-  const history = Object.values(grouped).slice(0, 4);
-
-  // Weekly volume
-  const weekVolume: Record<string, number> = {};
-  for (const w of weekWorkouts) {
-    weekVolume[w.body_part] = (weekVolume[w.body_part] ?? 0) + (setCounts[w.id] ?? 0);
-  }
 
   return (
     <main className="px-4 pt-6">
@@ -96,55 +42,141 @@ export default async function HomePage() {
       </Link>
 
       <Section title="HISTORY" right={<Link href="/stats" className="text-muted text-xs">すべて見る ›</Link>}>
-        <div className="space-y-2">
-          {history.length === 0 && <Empty text="まだ記録がありません。Start workoutから始めましょう。" />}
-          {history.map((h, i) => (
-            <div key={i} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
-              <div>
-                <div className="font-semibold text-sm">{fmtDate(h.date)}</div>
-                <div className="text-xs text-muted mt-0.5">
-                  部位：{Array.from(h.bodyParts).join("/")} ｜ 種目：{h.exerciseIds.size} ｜ セット：{h.setCount}
-                </div>
-                <span className="inline-block mt-2 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">
-                  {SET_TYPE_BADGE[h.setType]}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Suspense fallback={<SkeletonList />}>
+          <HistorySection />
+        </Suspense>
       </Section>
 
       <Section title="部位別ボリューム（今週）">
-        <div className="grid grid-cols-5 gap-2">
-          {BODY_PARTS.slice(0, 5).map((bp) => (
-            <div key={bp} className="bg-white border border-border rounded-xl py-3 flex flex-col items-center">
-              <span className="text-xs font-medium">{bp}</span>
-              <div className="text-base font-bold mt-1">{weekVolume[bp] ?? 0}</div>
-              <div className="text-[10px] text-muted">セット</div>
-            </div>
-          ))}
-        </div>
+        <Suspense fallback={<SkeletonGrid />}>
+          <WeeklyVolumeSection />
+        </Suspense>
       </Section>
 
       <Section title="自己ベスト更新（今週）">
-        {(!pbs || pbs.length === 0) ? <Empty text="今週の自己ベスト更新はまだありません" /> : (
-          <div className="space-y-2">
-            {pbs.map((p: any, i) => (
-              <div key={i} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🏆</span>
-                  <div>
-                    <div className="font-semibold">{p.exercise?.name ?? "種目"}</div>
-                    <div className="text-xs text-muted">自己ベスト更新！</div>
-                    <div className="text-sm font-bold">{p.weight}kg × {p.reps}回</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <Suspense fallback={<SkeletonList />}>
+          <PBSection />
+        </Suspense>
       </Section>
     </main>
+  );
+}
+
+async function HistorySection() {
+  const supabase = await createClient();
+  const { data: workouts } = await supabase
+    .from("workouts")
+    .select("id,set_type,body_part,performed_at,exercise_id, exercise:exercises!workouts_exercise_id_fkey(name)")
+    .order("performed_at", { ascending: false })
+    .limit(20);
+
+  const list = workouts ?? [];
+  if (list.length === 0) return <Empty text="まだ記録がありません。Start workoutから始めましょう。" />;
+
+  const ids = list.map((w) => w.id);
+  const { data: sets } = await supabase
+    .from("workout_sets")
+    .select("workout_id")
+    .in("workout_id", ids);
+  const setCounts: Record<string, number> = {};
+  for (const s of sets ?? []) setCounts[s.workout_id] = (setCounts[s.workout_id] ?? 0) + 1;
+
+  // Group by minute key（既存仕様維持）
+  const grouped: Record<string, { date: string; bodyParts: Set<BodyPart>; exerciseIds: Set<string>; setCount: number; setType: SetType }> = {};
+  for (const w of list) {
+    const key = w.performed_at.slice(0, 16);
+    if (!grouped[key]) grouped[key] = { date: w.performed_at, bodyParts: new Set(), exerciseIds: new Set(), setCount: 0, setType: w.set_type };
+    grouped[key].bodyParts.add(w.body_part as BodyPart);
+    grouped[key].exerciseIds.add(w.exercise_id);
+    grouped[key].setCount += setCounts[w.id] ?? 0;
+  }
+  const history = Object.values(grouped).slice(0, 4);
+
+  return (
+    <div className="space-y-2">
+      {history.map((h, i) => (
+        <Link
+          key={i}
+          href={`/sessions/${toSessionSlug(h.date)}`}
+          prefetch={false}
+          className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm active:bg-surface"
+        >
+          <div>
+            <div className="font-semibold text-sm">{fmtDate(h.date)}</div>
+            <div className="text-xs text-muted mt-0.5">
+              部位：{Array.from(h.bodyParts).join("/")} ｜ 種目：{h.exerciseIds.size} ｜ セット：{h.setCount}
+            </div>
+            <span className="inline-block mt-2 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">
+              {SET_TYPE_BADGE[h.setType]}
+            </span>
+          </div>
+          <span className="text-muted">›</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+async function WeeklyVolumeSection() {
+  const supabase = await createClient();
+  const weekStart = startOfWeek().toISOString();
+  const { data: weekW } = await supabase
+    .from("workouts")
+    .select("id,body_part")
+    .gte("performed_at", weekStart);
+
+  const week = weekW ?? [];
+  let counts: Record<string, number> = {};
+  if (week.length) {
+    const { data: sets } = await supabase
+      .from("workout_sets")
+      .select("workout_id")
+      .in("workout_id", week.map((w) => w.id));
+    for (const s of sets ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
+  }
+  const vol: Record<string, number> = {};
+  for (const w of week) vol[w.body_part] = (vol[w.body_part] ?? 0) + (counts[w.id] ?? 0);
+
+  return (
+    <div className="grid grid-cols-5 gap-2">
+      {BODY_PARTS.slice(0, 5).map((bp) => (
+        <div key={bp} className="bg-white border border-border rounded-xl py-3 flex flex-col items-center">
+          <span className="text-xs font-medium">{bp}</span>
+          <div className="text-base font-bold mt-1">{vol[bp] ?? 0}</div>
+          <div className="text-[10px] text-muted">セット</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+async function PBSection() {
+  const supabase = await createClient();
+  const weekStart = startOfWeek().toISOString();
+  const { data: pbs } = await supabase
+    .from("personal_bests")
+    .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name)")
+    .gte("achieved_at", weekStart)
+    .order("achieved_at", { ascending: false })
+    .limit(3);
+
+  if (!pbs || pbs.length === 0) return <Empty text="今週の自己ベスト更新はまだありません" />;
+
+  return (
+    <div className="space-y-2">
+      {pbs.map((p: any, i) => (
+        <div key={i} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <div className="font-semibold">{p.exercise?.name ?? "種目"}</div>
+              <div className="text-xs text-muted">自己ベスト更新！</div>
+              <div className="text-sm font-bold">{p.weight}kg × {p.reps}回</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -162,4 +194,24 @@ function Section({ title, right, children }: { title: string; right?: React.Reac
 
 function Empty({ text }: { text: string }) {
   return <p className="text-muted text-xs bg-white border border-border rounded-xl px-4 py-3">{text}</p>;
+}
+
+function SkeletonList() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div key={i} className="bg-white border border-border rounded-xl px-4 py-3 h-16 animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-5 gap-2">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="bg-white border border-border rounded-xl h-16 animate-pulse" />
+      ))}
+    </div>
+  );
 }

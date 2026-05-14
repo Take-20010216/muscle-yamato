@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { fmtDate, startOfWeek } from "@/lib/utils";
+import { fmtDate, startOfWeek, toSessionSlug } from "@/lib/utils";
 import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
 import { BODY_PARTS, SET_TYPE_LABELS } from "@/lib/types";
 
@@ -23,6 +24,7 @@ export default function StatsView() {
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
   const [pbs, setPbs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => { loadAll(); }, []);
 
@@ -112,14 +114,21 @@ export default function StatsView() {
         <div className="space-y-2">
           {workouts.length === 0 && <p className="text-muted text-sm">記録がありません</p>}
           {workouts.map((w) => (
-            <div key={w.id} className="bg-white border border-border rounded-xl p-4">
+            <div
+              key={w.id}
+              onClick={() => router.push(`/sessions/${toSessionSlug(w.performed_at)}`)}
+              className="bg-white border border-border rounded-xl p-4 cursor-pointer active:bg-surface"
+            >
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-xs text-muted">{fmtDate(w.performed_at)}</div>
                   <div className="font-bold mt-0.5">{w.exercise?.name ?? "?"}{w.exercise_b ? ` ＋ ${w.exercise_b.name}` : ""}</div>
                   <span className="inline-block mt-1 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">{SET_TYPE_LABELS[w.set_type]}</span>
                 </div>
-                <button onClick={() => deleteWorkout(w.id)} className="text-red-500 text-sm">削除</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteWorkout(w.id); }}
+                  className="text-red-500 text-sm"
+                >削除</button>
               </div>
               <ul className="mt-2 space-y-1 text-sm">
                 {w.sets.map((s) => (
