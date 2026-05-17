@@ -30,8 +30,8 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   if (!range) notFound();
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
 
   const { data: workouts } = await supabase
     .from("workouts")

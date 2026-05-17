@@ -26,7 +26,10 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() はcookieだけ読む（ネットワーク不要）。redirect判定にはこれで十分。
+  // 実データへのアクセスはRLSで保護される。
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const url = request.nextUrl.clone();
   const isAuthPage = url.pathname === "/login" || url.pathname === "/signup";
