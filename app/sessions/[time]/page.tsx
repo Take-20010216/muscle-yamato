@@ -2,17 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/utils";
-import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
+import type { BodyPart, SetType, WorkoutSet, DropStage } from "@/lib/types";
 import { SET_TYPE_LABELS } from "@/lib/types";
 import BodyPartIcon from "@/components/BodyPartIcon";
 
 type WorkoutRow = {
   id: string;
-  set_type: SetType;
-  body_part: BodyPart;
+  body_parts: BodyPart[];
   performed_at: string;
   memo: string | null;
-  exercise: { name: string } | null;
+  exercise: { name: string; body_part: BodyPart } | null;
   exercise_b: { name: string } | null;
 };
 
@@ -37,7 +36,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   const { data: workouts } = await supabase
     .from("workouts")
     .select(
-      "id,set_type,body_part,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name), exercise_b:exercises!workouts_exercise_id_b_fkey(name)"
+      "id,body_parts,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name,body_part), exercise_b:exercises!workouts_exercise_id_b_fkey(name)"
     )
     .gte("performed_at", range.start)
     .lt("performed_at", range.end)
@@ -56,7 +55,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   for (const s of (sets ?? []) as WorkoutSet[]) (byW[s.workout_id] ||= []).push(s);
 
   const headDate = rows[0].performed_at;
-  const bodyParts = Array.from(new Set(rows.map((r) => r.body_part)));
+  const sessionParts = Array.from(new Set(rows.flatMap((r) => r.body_parts ?? [])));
 
   return (
     <main className="px-4 pt-6">
@@ -68,12 +67,21 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
 
       <div className="bg-white border border-border rounded-xl px-4 py-3 mb-4 shadow-sm">
         <div className="text-xs text-muted">{fmtDate(headDate)}</div>
-        <div className="text-xs text-muted mt-0.5">部位：{bodyParts.join("/")} ｜ 種目：{rows.length}</div>
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {sessionParts.map((p) => (
+            <span key={p} className="inline-flex items-center gap-1 text-[11px] bg-surface border border-border rounded-full px-2 py-0.5">
+              <BodyPartIcon part={p} size={14} className="text-red-500" />
+              {p}
+            </span>
+          ))}
+          <span className="text-xs text-muted ml-auto self-center">種目：{rows.length}</span>
+        </div>
       </div>
 
       <div className="space-y-3">
         {rows.map((w) => {
           const ws = byW[w.id] ?? [];
+          const exPart = w.exercise?.body_part;
           return (
             <div key={w.id} className="bg-white border border-border rounded-xl p-4">
               <div className="flex items-start justify-between">
@@ -82,30 +90,35 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                     {w.exercise?.name ?? "?"}
                     {w.exercise_b ? ` ＋ ${w.exercise_b.name}` : ""}
                   </div>
-                  <span className="inline-block mt-1 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">
-                    {SET_TYPE_LABELS[w.set_type]}
-                  </span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted">
-                  <BodyPartIcon part={w.body_part} size={16} className="text-red-500" />
-                  <span>{w.body_part}</span>
-                </div>
+                {exPart && (
+                  <div className="flex items-center gap-1 text-xs text-muted">
+                    <BodyPartIcon part={exPart} size={16} className="text-red-500" />
+                    <span>{exPart}</span>
+                  </div>
+                )}
               </div>
               <ul className="mt-2 space-y-1 text-sm">
-                {ws.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2">
-                    <span className="text-muted w-6">{s.set_index}</span>
-                    <span>
-                      {w.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
-                    </span>
-                    {w.set_type === "drop" && s.drop_weight != null && (
-                      <span className="text-muted text-xs">→ {s.drop_weight}kg × {s.drop_reps}回</span>
-                    )}
-                    {w.set_type === "super" && s.weight_b != null && (
-                      <span className="text-muted text-xs">＋ {s.weight_b}kg × {s.reps_b}回</span>
-                    )}
-                  </li>
-                ))}
+                {ws.map((s) => {
+                  const drops = (s.drops ?? []) as DropStage[];
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-muted w-6">{s.set_index}</span>
+                      <span>
+                        {s.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
+                      </span>
+                      <span className="text-[9px] tracking-wider text-muted">{SET_TYPE_LABELS[s.set_type as SetType]}</span>
+                      {s.set_type === "drop" && drops.length > 0 && (
+                        <span className="text-muted text-xs">
+                          {drops.map((d, i) => ` → ${d.weight}kg × ${d.reps}回`).join("")}
+                        </span>
+                      )}
+                      {s.set_type === "super" && s.weight_b != null && (
+                        <span className="text-muted text-xs">＋ {s.weight_b}kg × {s.reps_b}回</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               {w.memo && <p className="mt-2 text-xs text-muted whitespace-pre-wrap">📝 {w.memo}</p>}
             </div>

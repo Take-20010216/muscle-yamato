@@ -22,14 +22,17 @@ export const DEFAULT_EXERCISES: { name: string; body_part: BodyPart }[] = [
   { name: "サイドレイズ", body_part: "肩" },
   { name: "リアレイズ", body_part: "肩" },
   { name: "フロントレイズ", body_part: "肩" },
-  // 腕
-  { name: "バーベルカール", body_part: "腕" },
-  { name: "ダンベルカール", body_part: "腕" },
-  { name: "トライセプスエクステンション", body_part: "腕" },
-  { name: "ナローベンチプレス", body_part: "腕" },
-  // 体幹
-  { name: "クランチ", body_part: "体幹" },
-  { name: "プランク", body_part: "体幹" },
-  { name: "レッグレイズ", body_part: "体幹" },
-  { name: "ロシアンツイスト", body_part: "体幹" },
+  // 上腕二頭筋
+  { name: "バーベルカール", body_part: "上腕二頭筋" },
+  { name: "ダンベルカール", body_part: "上腕二頭筋" },
+  { name: "ハンマーカール", body_part: "上腕二頭筋" },
+  { name: "プリーチャーカール", body_part: "上腕二頭筋" },
+  // 上腕三頭筋
+  { name: "トライセプスエクステンション", body_part: "上腕三頭筋" },
+  { name: "ナローベンチプレス", body_part: "上腕三頭筋" },
+  { name: "ケーブルプレスダウン", body_part: "上腕三頭筋" },
+  { name: "ディップス", body_part: "上腕三頭筋" },
+  // 全身
+  { name: "バーピー", body_part: "全身" },
+  { name: "クリーン＆プレス", body_part: "全身" },
 ];

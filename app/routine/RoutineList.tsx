@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ExercisePicker from "@/components/ExercisePicker";
-import type { Exercise, Routine, RoutineItem, SetType } from "@/lib/types";
-import { SET_TYPE_LABELS } from "@/lib/types";
+import BodyPartIcon from "@/components/BodyPartIcon";
+import type { Exercise, Routine, RoutineItem, BodyPart } from "@/lib/types";
+import { BODY_PARTS, isFullBody } from "@/lib/types";
 
 type FullRoutine = Routine & { items: (RoutineItem & { exercise?: Exercise; exercise_b?: Exercise | null })[] };
 
@@ -24,7 +25,6 @@ export default function RoutineList() {
     const { data: rs } = await supabase.from("routines").select("*").order("created_at", { ascending: false });
     if (!rs) { setRoutines([]); setLoading(false); return; }
 
-    // Fetch all items in one query
     const ids = (rs as Routine[]).map((r) => r.id);
     let itemsByRoutine: Record<string, any[]> = {};
     if (ids.length) {
@@ -84,15 +84,24 @@ export default function RoutineList() {
                 <button onClick={() => deleteRoutine(r.id)} className="text-red-500">削除</button>
               </div>
             </div>
+            {r.body_parts && r.body_parts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {r.body_parts.map((p) => (
+                  <span key={p} className="inline-flex items-center gap-1 text-[11px] bg-surface border border-border rounded-full px-2 py-0.5">
+                    <BodyPartIcon part={p} size={14} className="text-red-500" />
+                    {p}
+                  </span>
+                ))}
+              </div>
+            )}
             {r.items.length === 0 ? (
               <p className="text-xs text-muted">種目未登録</p>
             ) : (
               <ul className="space-y-1.5 mb-3">
                 {r.items.map((it) => (
                   <li key={it.id} className="text-sm flex items-center gap-2">
-                    <span className="text-[9px] tracking-wider bg-surface border border-border rounded px-1.5 py-0.5">{SET_TYPE_LABELS[it.set_type]}</span>
                     <span>{it.exercise?.name ?? "?"}</span>
-                    {it.set_type === "super" && it.exercise_b && <span className="text-muted">＋ {it.exercise_b.name}</span>}
+                    {it.exercise_b && <span className="text-muted">＋ {it.exercise_b.name}</span>}
                     <span className="text-muted text-xs ml-auto">×{it.target_sets}セット</span>
                   </li>
                 ))}
@@ -112,13 +121,20 @@ export default function RoutineList() {
   );
 }
 
+type EditItem = {
+  id?: string;
+  exercise: Exercise | null;
+  exercise_b: Exercise | null;
+  target_sets: number;
+};
+
 function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onClose: () => void }) {
   const isNew = !routine;
   const [name, setName] = useState(routine?.name ?? "");
+  const [bodyParts, setBodyParts] = useState<BodyPart[]>(routine?.body_parts ?? []);
   const [items, setItems] = useState<EditItem[]>(
     (routine?.items ?? []).map((it) => ({
       id: it.id,
-      set_type: it.set_type,
       exercise: it.exercise ?? null,
       exercise_b: it.exercise_b ?? null,
       target_sets: it.target_sets,
@@ -126,8 +142,18 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
   );
   const [saving, setSaving] = useState(false);
 
+  function togglePart(p: BodyPart) {
+    setBodyParts((prev) => {
+      if (prev.includes(p)) return prev.filter((x) => x !== p);
+      if (p === "全身") return ["全身"];
+      const filtered = prev.filter((x) => x !== "全身");
+      if (filtered.length >= 3) return filtered;
+      return [...filtered, p];
+    });
+  }
+
   function addItem() {
-    setItems((prev) => [...prev, { set_type: "normal", exercise: null, exercise_b: null, target_sets: 3 }]);
+    setItems((prev) => [...prev, { exercise: null, exercise_b: null, target_sets: 3 }]);
   }
   function updateItem(i: number, patch: Partial<EditItem>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -137,7 +163,6 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
   async function save() {
     if (!name.trim()) { alert("ルーティン名を入力してください"); return; }
     if (items.some((it) => !it.exercise)) { alert("すべての項目で種目を選択してください"); return; }
-    if (items.some((it) => it.set_type === "super" && !it.exercise_b)) { alert("スーパーセットには2種目目を選択してください"); return; }
 
     setSaving(true);
     try {
@@ -147,10 +172,17 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
 
       let routineId = routine?.id;
       if (isNew) {
-        const { data, error } = await supabase.from("routines").insert({ user_id: user.id, name: name.trim() }).select().single();
+        const { data, error } = await supabase
+          .from("routines")
+          .insert({ user_id: user.id, name: name.trim(), body_parts: bodyParts })
+          .select()
+          .single();
         if (error) throw error; routineId = data.id;
       } else {
-        await supabase.from("routines").update({ name: name.trim() }).eq("id", routineId!);
+        await supabase
+          .from("routines")
+          .update({ name: name.trim(), body_parts: bodyParts })
+          .eq("id", routineId!);
         await supabase.from("routine_items").delete().eq("routine_id", routineId!);
       }
 
@@ -158,9 +190,8 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
         const rows = items.map((it, idx) => ({
           routine_id: routineId!,
           position: idx,
-          set_type: it.set_type,
           exercise_id: it.exercise!.id,
-          exercise_id_b: it.set_type === "super" ? it.exercise_b!.id : null,
+          exercise_id_b: it.exercise_b?.id ?? null,
           target_sets: it.target_sets,
         }));
         const { error } = await supabase.from("routine_items").insert(rows);
@@ -183,31 +214,56 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
       </header>
 
       <input
-        className="w-full bg-white border border-border rounded-xl px-4 py-3 outline-none mb-5 focus:border-ink"
+        className="w-full bg-white border border-border rounded-xl px-4 py-3 outline-none mb-3 focus:border-ink"
         placeholder="ルーティン名（例: 胸の日）"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
 
+      <div className="bg-white border border-border rounded-xl p-3 mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-muted">部位（最大3）</span>
+          <span className="text-[10px] text-muted">{bodyParts.length}/3</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {BODY_PARTS.map((p) => {
+            const active = bodyParts.includes(p);
+            const disabled =
+              !active &&
+              ((p === "全身" && bodyParts.length > 0) ||
+                (p !== "全身" && (isFullBody(bodyParts) || bodyParts.length >= 3)));
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => !disabled && togglePart(p)}
+                disabled={disabled}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs ${
+                  active ? "bg-ink text-bg border-ink" : "bg-white border-border text-ink"
+                } ${disabled ? "opacity-40" : ""}`}
+              >
+                <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-red-500"} />
+                <span>{p}</span>
+                {active && <span className="ml-0.5">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="space-y-3 mb-4">
         {items.map((it, i) => (
           <div key={i} className="bg-white border border-border rounded-xl p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="grid grid-cols-4 bg-surface border border-border rounded-lg p-1 flex-1 gap-0.5">
-                {(["normal", "drop", "super", "no_weight"] as SetType[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => updateItem(i, { set_type: t })}
-                    className={`py-1.5 text-[9px] tracking-wider rounded ${it.set_type === t ? "tab-metallic-active" : "text-muted"}`}
-                  >{SET_TYPE_LABELS[t]}</button>
-                ))}
-              </div>
-              <button onClick={() => removeItem(i)} className="text-red-500 ml-3 text-sm">削除</button>
+              <span className="text-xs text-muted">種目 #{i + 1}</span>
+              <button onClick={() => removeItem(i)} className="text-red-500 text-sm">削除</button>
             </div>
             <ExercisePicker value={it.exercise} onChange={(e) => updateItem(i, { exercise: e })} label="種目" />
-            {it.set_type === "super" && (
-              <ExercisePicker value={it.exercise_b} onChange={(e) => updateItem(i, { exercise_b: e })} label="種目（2つ目）" />
-            )}
+            <ExercisePicker
+              value={it.exercise_b}
+              onChange={(e) => updateItem(i, { exercise_b: e })}
+              label="スーパーセット用2種目目（任意）"
+            />
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted">目標セット数</span>
               <input
@@ -229,11 +285,3 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
     </main>
   );
 }
-
-type EditItem = {
-  id?: string;
-  set_type: SetType;
-  exercise: Exercise | null;
-  exercise_b: Exercise | null;
-  target_sets: number;
-};

@@ -4,17 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, startOfWeek, toSessionSlug } from "@/lib/utils";
-import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
+import type { BodyPart, SetType, WorkoutSet, DropStage } from "@/lib/types";
 import { BODY_PARTS, SET_TYPE_LABELS } from "@/lib/types";
 import BodyPartIcon from "@/components/BodyPartIcon";
 
 type WorkoutRow = {
   id: string;
-  set_type: SetType;
-  body_part: BodyPart;
+  body_parts: BodyPart[];
   performed_at: string;
   memo: string | null;
-  exercise: { name: string } | null;
+  exercise: { name: string; body_part: BodyPart } | null;
   exercise_b: { name: string } | null;
   sets: WorkoutSet[];
 };
@@ -35,10 +34,10 @@ export default function StatsView() {
     const weekStart = startOfWeek().toISOString();
 
     const [weekWRes, wsRes, pbRes] = await Promise.all([
-      supabase.from("workouts").select("id,body_part").gte("performed_at", weekStart),
+      supabase.from("workouts").select("id,body_parts").gte("performed_at", weekStart),
       supabase
         .from("workouts")
-        .select("id,set_type,body_part,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name), exercise_b:exercises!workouts_exercise_id_b_fkey(name)")
+        .select("id,body_parts,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name,body_part), exercise_b:exercises!workouts_exercise_id_b_fkey(name)")
         .order("performed_at", { ascending: false })
         .limit(50),
       supabase
@@ -47,7 +46,7 @@ export default function StatsView() {
         .order("achieved_at", { ascending: false }),
     ]);
 
-    const weekW = weekWRes.data ?? [];
+    const weekW = (weekWRes.data ?? []) as { id: string; body_parts: string[] }[];
     const ids = weekW.map((w) => w.id);
     let counts: Record<string, number> = {};
     if (ids.length) {
@@ -55,7 +54,10 @@ export default function StatsView() {
       for (const s of ws ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
     }
     const vol: Record<string, number> = {};
-    for (const w of weekW) vol[w.body_part] = (vol[w.body_part] ?? 0) + (counts[w.id] ?? 0);
+    for (const w of weekW) {
+      const c = counts[w.id] ?? 0;
+      for (const p of w.body_parts ?? []) vol[p] = (vol[p] ?? 0) + c;
+    }
     setWeekVolume(vol);
 
     const ws = wsRes.data ?? [];
@@ -127,7 +129,14 @@ export default function StatsView() {
                 <div>
                   <div className="text-xs text-muted">{fmtDate(w.performed_at)}</div>
                   <div className="font-bold mt-0.5">{w.exercise?.name ?? "?"}{w.exercise_b ? ` ＋ ${w.exercise_b.name}` : ""}</div>
-                  <span className="inline-block mt-1 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">{SET_TYPE_LABELS[w.set_type]}</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(w.body_parts ?? []).map((p) => (
+                      <span key={p} className="inline-flex items-center gap-1 text-[10px] bg-surface border border-border rounded-full px-1.5 py-0.5">
+                        <BodyPartIcon part={p} size={12} className="text-red-500" />
+                        {p}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteWorkout(w.id); }}
@@ -135,20 +144,26 @@ export default function StatsView() {
                 >削除</button>
               </div>
               <ul className="mt-2 space-y-1 text-sm">
-                {w.sets.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2">
-                    <span className="text-muted w-6">{s.set_index}</span>
-                    <span>
-                      {w.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
-                    </span>
-                    {w.set_type === "drop" && s.drop_weight != null && (
-                      <span className="text-muted text-xs">→ {s.drop_weight}kg × {s.drop_reps}回</span>
-                    )}
-                    {w.set_type === "super" && s.weight_b != null && (
-                      <span className="text-muted text-xs">＋ {s.weight_b}kg × {s.reps_b}回</span>
-                    )}
-                  </li>
-                ))}
+                {w.sets.map((s) => {
+                  const drops = (s.drops ?? []) as DropStage[];
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-2">
+                      <span className="text-muted w-6">{s.set_index}</span>
+                      <span>
+                        {s.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
+                      </span>
+                      <span className="text-[9px] tracking-wider text-muted">{SET_TYPE_LABELS[s.set_type as SetType]}</span>
+                      {s.set_type === "drop" && drops.length > 0 && (
+                        <span className="text-muted text-xs">
+                          {drops.map((d) => ` → ${d.weight}kg × ${d.reps}回`).join("")}
+                        </span>
+                      )}
+                      {s.set_type === "super" && s.weight_b != null && (
+                        <span className="text-muted text-xs">＋ {s.weight_b}kg × {s.reps_b}回</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               {w.memo && <p className="mt-2 text-xs text-muted whitespace-pre-wrap">📝 {w.memo}</p>}
             </div>
@@ -163,7 +178,10 @@ export default function StatsView() {
             <div key={i} className="bg-white border border-border rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="font-bold">{p.exercise?.name ?? "?"}</div>
-                <div className="text-xs text-muted">{p.exercise?.body_part}</div>
+                <div className="text-xs text-muted flex items-center gap-1">
+                  {p.exercise?.body_part && <BodyPartIcon part={p.exercise.body_part} size={12} className="text-red-500" />}
+                  {p.exercise?.body_part}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-xl font-bold">

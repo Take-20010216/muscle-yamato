@@ -4,14 +4,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { jstDayRange, toJstDateKey } from "@/lib/utils";
 import BodyPartIcon from "./BodyPartIcon";
-import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
+import type { BodyPart, WorkoutSet } from "@/lib/types";
 
 type WorkoutRow = {
   id: string;
-  set_type: SetType;
-  body_part: BodyPart;
+  body_parts: BodyPart[];
   performed_at: string;
-  exercise: { name: string } | null;
+  exercise: { name: string; body_part: BodyPart } | null;
 };
 
 const WD_JP = ["日", "月", "火", "水", "木", "金", "土"];
@@ -108,7 +107,7 @@ export default function CalendarHistory() {
     (async () => {
       const { data: workouts } = await supabase
         .from("workouts")
-        .select("id,set_type,body_part,performed_at, exercise:exercises!workouts_exercise_id_fkey(name)")
+        .select("id,body_parts,performed_at, exercise:exercises!workouts_exercise_id_fkey(name,body_part)")
         .gte("performed_at", startIso)
         .lt("performed_at", endIso)
         .order("performed_at", { ascending: true });
@@ -146,11 +145,12 @@ export default function CalendarHistory() {
     else setViewM(viewM + 1);
   }
 
-  // 部位ごとにグループ化
+  // 部位ごとにグループ化（種目のbody_partを採用）
   const groupedByPart = useMemo(() => {
     const g: Record<string, { workout: WorkoutRow; sets: WorkoutSet[] }[]> = {};
     for (const w of dayWorkouts) {
-      (g[w.body_part] ||= []).push({ workout: w, sets: daySets[w.id] ?? [] });
+      const part = w.exercise?.body_part ?? "その他";
+      (g[part] ||= []).push({ workout: w, sets: daySets[w.id] ?? [] });
     }
     return g;
   }, [dayWorkouts, daySets]);
@@ -231,16 +231,18 @@ export default function CalendarHistory() {
             </div>
             {items.map(({ workout: w, sets }) => {
               const setCount = sets.length;
+              // 各セットの自身のset_typeで scoreを計算
               const topSet = sets.reduce<WorkoutSet | null>((best, s) => {
-                if (w.set_type === "no_weight") return !best || s.reps > best.reps ? s : best;
-                return !best || s.weight * s.reps > best.weight * best.reps ? s : best;
+                const sc = s.set_type === "no_weight" ? s.reps : s.weight * s.reps;
+                const bc = best == null ? -1 : (best.set_type === "no_weight" ? best.reps : best.weight * best.reps);
+                return sc > bc ? s : best;
               }, null);
               return (
                 <div key={w.id} className="grid grid-cols-[1fr_60px_72px_60px] gap-x-2 text-sm py-1 border-t border-border first:border-t-0">
                   <span className="truncate">{w.exercise?.name ?? "?"}</span>
                   <span className="text-right">{setCount}</span>
                   <span className="text-right">
-                    {topSet == null ? "-" : w.set_type === "no_weight" ? "自重" : `${topSet.weight} kg`}
+                    {topSet == null ? "-" : topSet.set_type === "no_weight" ? "自重" : `${topSet.weight} kg`}
                   </span>
                   <span className="text-right">
                     {topSet == null ? "-" : `${topSet.reps}回`}

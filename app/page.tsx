@@ -59,10 +59,10 @@ async function WeeklyVolumeSection() {
   const weekStart = startOfWeek().toISOString();
   const { data: weekW } = await supabase
     .from("workouts")
-    .select("id,body_part")
+    .select("id,body_parts")
     .gte("performed_at", weekStart);
 
-  const week = weekW ?? [];
+  const week = (weekW ?? []) as { id: string; body_parts: string[] }[];
   let counts: Record<string, number> = {};
   if (week.length) {
     const { data: sets } = await supabase
@@ -71,15 +71,19 @@ async function WeeklyVolumeSection() {
       .in("workout_id", week.map((w) => w.id));
     for (const s of sets ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
   }
+  // body_parts は配列なので、各部位に同じセット数を加算
   const vol: Record<string, number> = {};
-  for (const w of week) vol[w.body_part] = (vol[w.body_part] ?? 0) + (counts[w.id] ?? 0);
+  for (const w of week) {
+    const c = counts[w.id] ?? 0;
+    for (const p of w.body_parts ?? []) vol[p] = (vol[p] ?? 0) + c;
+  }
 
   return (
-    <div className="grid grid-cols-5 gap-2">
-      {BODY_PARTS.slice(0, 5).map((bp) => (
-        <div key={bp} className="bg-white border border-border rounded-xl py-3 flex flex-col items-center">
+    <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
+      {BODY_PARTS.map((bp) => (
+        <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[68px]">
           <BodyPartIcon part={bp} size={22} className="text-red-500 mb-1" />
-          <span className="text-xs font-medium">{bp}</span>
+          <span className="text-[10px] font-medium whitespace-nowrap">{bp}</span>
           <div className="text-base font-bold mt-1">{vol[bp] ?? 0}</div>
           <div className="text-[10px] text-muted">セット</div>
         </div>
