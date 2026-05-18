@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/utils";
 import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
 import { SET_TYPE_LABELS } from "@/lib/types";
+import BodyPartIcon from "@/components/BodyPartIcon";
 
 type WorkoutRow = {
   id: string;
@@ -85,7 +86,10 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                     {SET_TYPE_LABELS[w.set_type]}
                   </span>
                 </div>
-                <span className="text-xs text-muted">{w.body_part}</span>
+                <div className="flex items-center gap-1 text-xs text-muted">
+                  <BodyPartIcon part={w.body_part} size={16} className="text-red-500" />
+                  <span>{w.body_part}</span>
+                </div>
               </div>
               <ul className="mt-2 space-y-1 text-sm">
                 {ws.map((s) => (

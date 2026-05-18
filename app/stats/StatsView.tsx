@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtDate, startOfWeek, toSessionSlug } from "@/lib/utils";
 import type { BodyPart, SetType, WorkoutSet } from "@/lib/types";
 import { BODY_PARTS, SET_TYPE_LABELS } from "@/lib/types";
+import BodyPartIcon from "@/components/BodyPartIcon";
 
 type WorkoutRow = {
   id: string;
@@ -102,7 +103,10 @@ export default function StatsView() {
           <div className="grid grid-cols-2 gap-2">
             {BODY_PARTS.map((bp) => (
               <div key={bp} className="bg-white border border-border rounded-xl p-3 flex items-center justify-between">
-                <span className="font-medium">{bp}</span>
+                <div className="flex items-center gap-2">
+                  <BodyPartIcon part={bp} size={20} className="text-red-500" />
+                  <span className="font-medium">{bp}</span>
+                </div>
                 <span className="text-xl font-bold">{weekVolume[bp] ?? 0}<span className="text-xs text-muted ml-1">セット</span></span>
               </div>
             ))}

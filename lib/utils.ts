@@ -55,3 +55,24 @@ export function setScore(weight: number, reps: number) {
 export function toSessionSlug(performedAt: string): string {
   return performedAt.slice(0, 16).replace(":", "-");
 }
+
+// 指定日(UTC ISO)のJSTでの日付キー "YYYY-MM-DD" を返す
+const TZ_JST = "Asia/Tokyo";
+export function toJstDateKey(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ_JST,
+    year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  return fmt.format(d); // "2026-05-14"
+}
+
+// JST日付("YYYY-MM-DD") の0:00 / 翌0:00 を UTC ISO で返す
+export function jstDayRange(dateKey: string): { startIso: string; endIso: string } {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const startUtcMs = Date.UTC(y, m - 1, d) - 9 * 3600 * 1000;
+  return {
+    startIso: new Date(startUtcMs).toISOString(),
+    endIso: new Date(startUtcMs + 86400 * 1000).toISOString(),
+  };
+}

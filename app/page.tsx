@@ -1,16 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { fmtDate, startOfWeek, toSessionSlug } from "@/lib/utils";
-import type { BodyPart, SetType } from "@/lib/types";
+import { startOfWeek } from "@/lib/utils";
 import { BODY_PARTS } from "@/lib/types";
-
-const SET_TYPE_BADGE: Record<SetType, string> = {
-  normal: "NORMAL SET",
-  drop: "DROP SET",
-  super: "SUPER SET",
-  no_weight: "NO WEIGHT",
-};
+import CalendarHistory from "@/components/CalendarHistory";
+import BodyPartIcon from "@/components/BodyPartIcon";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -41,11 +35,9 @@ export default async function HomePage() {
         <span>→</span>
       </Link>
 
-      <Section title="HISTORY" right={<Link href="/stats" className="text-muted text-xs">すべて見る ›</Link>}>
-        <Suspense fallback={<SkeletonList />}>
-          <HistorySection />
-        </Suspense>
-      </Section>
+      <div className="mt-4">
+        <CalendarHistory />
+      </div>
 
       <Section title="部位別ボリューム（今週）">
         <Suspense fallback={<SkeletonGrid />}>
@@ -59,61 +51,6 @@ export default async function HomePage() {
         </Suspense>
       </Section>
     </main>
-  );
-}
-
-async function HistorySection() {
-  const supabase = await createClient();
-  const { data: workouts } = await supabase
-    .from("workouts")
-    .select("id,set_type,body_part,performed_at,exercise_id, exercise:exercises!workouts_exercise_id_fkey(name)")
-    .order("performed_at", { ascending: false })
-    .limit(20);
-
-  const list = workouts ?? [];
-  if (list.length === 0) return <Empty text="まだ記録がありません。Start workoutから始めましょう。" />;
-
-  const ids = list.map((w) => w.id);
-  const { data: sets } = await supabase
-    .from("workout_sets")
-    .select("workout_id")
-    .in("workout_id", ids);
-  const setCounts: Record<string, number> = {};
-  for (const s of sets ?? []) setCounts[s.workout_id] = (setCounts[s.workout_id] ?? 0) + 1;
-
-  // Group by minute key（既存仕様維持）
-  const grouped: Record<string, { date: string; bodyParts: Set<BodyPart>; exerciseIds: Set<string>; setCount: number; setType: SetType }> = {};
-  for (const w of list) {
-    const key = w.performed_at.slice(0, 16);
-    if (!grouped[key]) grouped[key] = { date: w.performed_at, bodyParts: new Set(), exerciseIds: new Set(), setCount: 0, setType: w.set_type };
-    grouped[key].bodyParts.add(w.body_part as BodyPart);
-    grouped[key].exerciseIds.add(w.exercise_id);
-    grouped[key].setCount += setCounts[w.id] ?? 0;
-  }
-  const history = Object.values(grouped).slice(0, 4);
-
-  return (
-    <div className="space-y-2">
-      {history.map((h, i) => (
-        <Link
-          key={i}
-          href={`/sessions/${toSessionSlug(h.date)}`}
-          prefetch={false}
-          className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm active:bg-surface"
-        >
-          <div>
-            <div className="font-semibold text-sm">{fmtDate(h.date)}</div>
-            <div className="text-xs text-muted mt-0.5">
-              部位：{Array.from(h.bodyParts).join("/")} ｜ 種目：{h.exerciseIds.size} ｜ セット：{h.setCount}
-            </div>
-            <span className="inline-block mt-2 text-[10px] tracking-wider bg-surface border border-border rounded px-2 py-0.5">
-              {SET_TYPE_BADGE[h.setType]}
-            </span>
-          </div>
-          <span className="text-muted">›</span>
-        </Link>
-      ))}
-    </div>
   );
 }
 
@@ -141,6 +78,7 @@ async function WeeklyVolumeSection() {
     <div className="grid grid-cols-5 gap-2">
       {BODY_PARTS.slice(0, 5).map((bp) => (
         <div key={bp} className="bg-white border border-border rounded-xl py-3 flex flex-col items-center">
+          <BodyPartIcon part={bp} size={22} className="text-red-500 mb-1" />
           <span className="text-xs font-medium">{bp}</span>
           <div className="text-base font-bold mt-1">{vol[bp] ?? 0}</div>
           <div className="text-[10px] text-muted">セット</div>
