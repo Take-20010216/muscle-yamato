@@ -5,7 +5,6 @@ import { startOfWeek } from "@/lib/utils";
 import { BODY_PARTS } from "@/lib/types";
 import CalendarHistory from "@/components/CalendarHistory";
 import BodyPartIcon from "@/components/BodyPartIcon";
-import FlexArmIcon from "@/components/FlexArmIcon";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -15,12 +14,9 @@ export default async function HomePage() {
   return (
     <main className="px-4 pt-6">
       <header className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="font-display text-3xl tracking-wide leading-none">MUSCLE YAMATO</h1>
-            <p className="text-xs text-muted mt-1">筋トレ記録アプリ</p>
-          </div>
-          <FlexArmIcon className="w-12 h-12 text-ink shrink-0" />
+        <div>
+          <h1 className="font-display text-3xl tracking-wide leading-none">MUSCLE YAMATO</h1>
+          <p className="text-xs text-muted mt-1">筋トレ記録アプリ</p>
         </div>
         <Link href="/settings" className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center shrink-0">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>

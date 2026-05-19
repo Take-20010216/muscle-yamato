@@ -169,7 +169,7 @@ export default function CalendarHistory() {
       {/* カレンダー */}
       <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs tracking-widest text-red-500 font-bold">HISTORY</h3>
+          <h3 className="text-xs tracking-widest text-ink font-bold">HISTORY</h3>
           <Link href="/stats" className="text-muted text-xs">すべて見る ›</Link>
         </div>
         <div className="flex items-center justify-between mb-3">
@@ -196,12 +196,12 @@ export default function CalendarHistory() {
                 key={i}
                 onClick={() => setSelectedKey(c.dateKey)}
                 className={`relative aspect-square flex flex-col items-center justify-center rounded-full text-sm ${
-                  !c.inMonth ? "text-muted/40" : isSelected ? "bg-red-500 text-white font-bold" : "text-ink"
+                  !c.inMonth ? "text-muted/40" : isSelected ? "btn-metallic font-bold" : "text-ink"
                 }`}
               >
                 <span>{dayNum}</span>
                 {hasWorkout && c.inMonth && !isSelected && (
-                  <span className="absolute bottom-1 w-1 h-1 rounded-full bg-red-500" />
+                  <span className="absolute bottom-1 w-1 h-1 rounded-full bg-ink/70" />
                 )}
               </button>
             );
@@ -213,7 +213,7 @@ export default function CalendarHistory() {
       {/* 選択日の記録 */}
       <div className="bg-white border border-border rounded-xl p-4 shadow-sm mt-3">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-red-500">{selectedLabel}のトレーニング記録</h3>
+          <h3 className="text-sm font-bold text-ink">{selectedLabel}のトレーニング記録</h3>
         </div>
 
         {loadingDay && <p className="text-muted text-xs">読み込み中...</p>}
@@ -224,7 +224,7 @@ export default function CalendarHistory() {
         {!loadingDay && Object.entries(groupedByPart).map(([part, items]) => (
           <div key={part} className="mb-4 last:mb-0">
             <div className="flex items-center gap-2 mb-2">
-              <BodyPartIcon part={part} size={28} className="text-red-500" />
+              <BodyPartIcon part={part} size={28} className="text-ink" />
               <span className="font-bold">{part}</span>
             </div>
             <div className="grid grid-cols-[1fr_60px_72px_60px] gap-x-2 text-[11px] text-muted mb-1 px-1">
@@ -258,7 +258,7 @@ export default function CalendarHistory() {
         ))}
 
         {!loadingDay && dayWorkouts.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-xs text-red-500">
+          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-xs text-muted">
             <span>⏱</span>
             <span>合計セット数：{totalSets}セット</span>
           </div>
