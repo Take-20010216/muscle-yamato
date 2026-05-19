@@ -14,6 +14,9 @@ type WorkoutRow = {
 };
 
 const WD_JP = ["日", "月", "火", "水", "木", "金", "土"];
+// カレンダー表示は月曜始まり（Mo Tu We Th Fr Sa Su）
+const WD_EN_MON_FIRST = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function jstNowParts() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -25,25 +28,24 @@ function jstNowParts() {
 }
 
 function monthGrid(year: number, month1: number): { dateKey: string; inMonth: boolean }[] {
-  // month1: 1-12
+  // month1: 1-12 / 月曜始まり
   const first = new Date(Date.UTC(year, month1 - 1, 1));
-  const firstWd = first.getUTCDay(); // 0=Sun
+  const firstWd = first.getUTCDay(); // 0=Sun..6=Sat
+  // 月曜=0, ..., 日曜=6 にシフト
+  const leading = (firstWd + 6) % 7;
   const daysInMonth = new Date(Date.UTC(year, month1, 0)).getUTCDate();
 
   const cells: { dateKey: string; inMonth: boolean }[] = [];
-  // 前月分
   const prevMonth = month1 === 1 ? 12 : month1 - 1;
   const prevYear = month1 === 1 ? year - 1 : year;
   const prevDays = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
-  for (let i = firstWd - 1; i >= 0; i--) {
+  for (let i = leading - 1; i >= 0; i--) {
     const d = prevDays - i;
     cells.push({ dateKey: `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(d).padStart(2, "0")}`, inMonth: false });
   }
-  // 当月
   for (let d = 1; d <= daysInMonth; d++) {
     cells.push({ dateKey: `${year}-${String(month1).padStart(2, "0")}-${String(d).padStart(2, "0")}`, inMonth: true });
   }
-  // 翌月分（6行 = 42セルになるよう）
   const nextMonth = month1 === 12 ? 1 : month1 + 1;
   const nextYear = month1 === 12 ? year + 1 : year;
   let nd = 1;
@@ -170,15 +172,17 @@ export default function CalendarHistory() {
           <h3 className="text-xs tracking-widest text-red-500 font-bold">HISTORY</h3>
           <Link href="/stats" className="text-muted text-xs">すべて見る ›</Link>
         </div>
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center text-muted">‹</button>
-          <div className="font-bold text-sm">{viewY}年{viewM}月</div>
-          <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center text-muted">›</button>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-2xl font-bold tracking-tight">{MONTH_EN[viewM - 1]} {viewY}</div>
+          <div className="flex items-center gap-1">
+            <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center text-muted">‹</button>
+            <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center text-muted">›</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {WD_JP.map((w, i) => (
-            <div key={w} className={`text-[10px] text-center py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-muted"}`}>{w}</div>
+          {WD_EN_MON_FIRST.map((w, i) => (
+            <div key={w} className={`text-xs text-center py-1 ${i === 5 ? "text-blue-400" : i === 6 ? "text-red-400" : "text-muted"}`}>{w}</div>
           ))}
         </div>
 

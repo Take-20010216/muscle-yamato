@@ -14,11 +14,22 @@ export default async function HomePage() {
   return (
     <main className="px-4 pt-6">
       <header className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-wider">MUSCLE YAMATO</h1>
-          <p className="text-xs text-muted">筋トレ記録アプリ</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-2xl font-bold tracking-wider">MUSCLE YAMATO</h1>
+            <p className="text-xs text-muted">筋トレ記録アプリ</p>
+          </div>
+          {/* 力こぶアイコン */}
+          <svg width="42" height="42" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M6 30c2-6 6-9 12-9 4 0 5 2 7 5" />
+            <path d="M14 21c2-3 2-7 0-10" />
+            <path d="M19 26c3-2 6-2 9 1 3 3 5 8 3 13" />
+            <path d="M28 27c3 0 6 1 8 3 2 2 3 5 2 8" />
+            <path d="M35 24c2-2 4-2 6 0" />
+            <path d="M6 30c-1 2-1 4 1 5 4 2 9 1 12-1" />
+          </svg>
         </div>
-        <Link href="/settings" className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center">
+        <Link href="/settings" className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center shrink-0">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>
         </Link>
       </header>
