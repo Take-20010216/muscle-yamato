@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Bangers } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+
+const bangers = Bangers({ subsets: ["latin"], weight: "400", variable: "--font-display" });
 
 const SUPABASE_ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
@@ -22,7 +25,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
+    <html lang="ja" className={bangers.variable}>
       <head>
         {SUPABASE_ORIGIN && (
           <>

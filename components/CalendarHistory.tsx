@@ -181,8 +181,8 @@ export default function CalendarHistory() {
         </div>
 
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {WD_EN_MON_FIRST.map((w, i) => (
-            <div key={w} className={`text-xs text-center py-1 ${i === 5 ? "text-blue-400" : i === 6 ? "text-red-400" : "text-muted"}`}>{w}</div>
+          {WD_EN_MON_FIRST.map((w) => (
+            <div key={w} className="text-xs text-center py-1 text-muted">{w}</div>
           ))}
         </div>
 

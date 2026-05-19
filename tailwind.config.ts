@@ -15,6 +15,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"],
+        display: ["var(--font-display)", "Impact", "sans-serif"],
       },
     },
   },
