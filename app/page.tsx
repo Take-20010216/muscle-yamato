@@ -82,7 +82,7 @@ async function WeeklyVolumeSection() {
     <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
       {BODY_PARTS.map((bp) => (
         <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[68px]">
-          <BodyPartIcon part={bp} size={22} className="text-red-500 mb-1" />
+          <BodyPartIcon part={bp} size={22} className="text-ink mb-1" />
           <span className="text-[10px] font-medium whitespace-nowrap">{bp}</span>
           <div className="text-base font-bold mt-1">{vol[bp] ?? 0}</div>
           <div className="text-[10px] text-muted">セット</div>

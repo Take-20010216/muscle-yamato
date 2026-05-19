@@ -70,7 +70,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         <div className="flex flex-wrap gap-1.5 mt-1.5">
           {sessionParts.map((p) => (
             <span key={p} className="inline-flex items-center gap-1 text-[11px] bg-surface border border-border rounded-full px-2 py-0.5">
-              <BodyPartIcon part={p} size={14} className="text-red-500" />
+              <BodyPartIcon part={p} size={14} className="text-ink" />
               {p}
             </span>
           ))}
@@ -93,7 +93,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                 </div>
                 {exPart && (
                   <div className="flex items-center gap-1 text-xs text-muted">
-                    <BodyPartIcon part={exPart} size={16} className="text-red-500" />
+                    <BodyPartIcon part={exPart} size={16} className="text-ink" />
                     <span>{exPart}</span>
                   </div>
                 )}

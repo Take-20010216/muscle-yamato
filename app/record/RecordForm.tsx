@@ -315,7 +315,7 @@ function RecordFormInner() {
                   active ? "bg-ink text-bg border-ink" : "bg-white border-border text-ink"
                 } ${disabled ? "opacity-40" : ""}`}
               >
-                <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-red-500"} />
+                <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-ink"} />
                 <span>{p}</span>
                 {active && <span className="ml-0.5">✓</span>}
               </button>

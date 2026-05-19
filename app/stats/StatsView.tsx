@@ -106,7 +106,7 @@ export default function StatsView() {
             {BODY_PARTS.map((bp) => (
               <div key={bp} className="bg-white border border-border rounded-xl p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BodyPartIcon part={bp} size={20} className="text-red-500" />
+                  <BodyPartIcon part={bp} size={20} className="text-ink" />
                   <span className="font-medium">{bp}</span>
                 </div>
                 <span className="text-xl font-bold">{weekVolume[bp] ?? 0}<span className="text-xs text-muted ml-1">セット</span></span>
@@ -132,7 +132,7 @@ export default function StatsView() {
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(w.body_parts ?? []).map((p) => (
                       <span key={p} className="inline-flex items-center gap-1 text-[10px] bg-surface border border-border rounded-full px-1.5 py-0.5">
-                        <BodyPartIcon part={p} size={12} className="text-red-500" />
+                        <BodyPartIcon part={p} size={12} className="text-ink" />
                         {p}
                       </span>
                     ))}
@@ -179,7 +179,7 @@ export default function StatsView() {
               <div>
                 <div className="font-bold">{p.exercise?.name ?? "?"}</div>
                 <div className="text-xs text-muted flex items-center gap-1">
-                  {p.exercise?.body_part && <BodyPartIcon part={p.exercise.body_part} size={12} className="text-red-500" />}
+                  {p.exercise?.body_part && <BodyPartIcon part={p.exercise.body_part} size={12} className="text-ink" />}
                   {p.exercise?.body_part}
                 </div>
               </div>

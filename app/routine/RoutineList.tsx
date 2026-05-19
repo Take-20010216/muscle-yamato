@@ -88,7 +88,7 @@ export default function RoutineList() {
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {r.body_parts.map((p) => (
                   <span key={p} className="inline-flex items-center gap-1 text-[11px] bg-surface border border-border rounded-full px-2 py-0.5">
-                    <BodyPartIcon part={p} size={14} className="text-red-500" />
+                    <BodyPartIcon part={p} size={14} className="text-ink" />
                     {p}
                   </span>
                 ))}
@@ -242,7 +242,7 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
                   active ? "bg-ink text-bg border-ink" : "bg-white border-border text-ink"
                 } ${disabled ? "opacity-40" : ""}`}
               >
-                <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-red-500"} />
+                <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-ink"} />
                 <span>{p}</span>
                 {active && <span className="ml-0.5">✓</span>}
               </button>
