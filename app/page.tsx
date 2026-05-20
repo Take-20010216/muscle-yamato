@@ -78,16 +78,24 @@ async function WeeklyVolumeSection() {
     for (const p of w.body_parts ?? []) vol[p] = (vol[p] ?? 0) + c;
   }
 
+  const maxVol = Math.max(1, ...BODY_PARTS.map((bp) => vol[bp] ?? 0));
+
   return (
     <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
-      {BODY_PARTS.map((bp) => (
-        <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[68px]">
-          <BodyPartIcon part={bp} size={22} className="text-ink mb-1" />
-          <span className="text-[10px] font-medium whitespace-nowrap">{bp}</span>
-          <div className="text-base font-bold mt-1">{vol[bp] ?? 0}</div>
-          <div className="text-[10px] text-muted">セット</div>
-        </div>
-      ))}
+      {BODY_PARTS.map((bp) => {
+        const v = vol[bp] ?? 0;
+        const pct = Math.min(100, Math.round((v / maxVol) * 100));
+        return (
+          <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[72px]">
+            <BodyPartIcon part={bp} size={24} className="text-ink mb-1" />
+            <span className="text-[10px] font-medium whitespace-nowrap">{bp}</span>
+            <div className="text-xs font-bold mt-1 text-navy">{v}</div>
+            <div className="w-full h-1.5 bg-surface rounded-full mt-1 overflow-hidden">
+              <div className="h-full bar-fill-navy rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

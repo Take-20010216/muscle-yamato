@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { jstDayRange, toJstDateKey } from "@/lib/utils";
+import { jstDayRange, toJstDateKey, toSessionSlug } from "@/lib/utils";
 import BodyPartIcon from "./BodyPartIcon";
 import type { BodyPart, WorkoutSet } from "@/lib/types";
 
@@ -107,6 +107,7 @@ export default function CalendarHistory() {
     const { startIso, endIso } = jstDayRange(selectedKey);
 
     (async () => {
+      // 1往復目: workouts のみ取得（IDがないとsetsを取れない）
       const { data: workouts } = await supabase
         .from("workouts")
         .select("id,body_parts,performed_at, exercise:exercises!workouts_exercise_id_fkey(name,body_part)")
@@ -121,10 +122,11 @@ export default function CalendarHistory() {
         setLoadingDay(false);
         return;
       }
+      // setsだけ別フェッチ（IDが必要）
       const ids = rows.map((w) => w.id);
       const { data: sets } = await supabase
         .from("workout_sets")
-        .select("*")
+        .select("workout_id,set_index,set_type,weight,reps,drops,weight_b,reps_b,id")
         .in("workout_id", ids)
         .order("set_index");
       if (cancelled) return;
@@ -210,60 +212,69 @@ export default function CalendarHistory() {
         {loadingMonth && <p className="text-[10px] text-muted text-center mt-2">読み込み中...</p>}
       </div>
 
-      {/* 選択日の記録 */}
-      <div className="bg-white border border-border rounded-xl p-4 shadow-sm mt-3">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-ink">{selectedLabel}のトレーニング記録</h3>
-        </div>
+      {/* 選択日の記録カード（タップで詳細へ） */}
+      <DaySummaryCard
+        label={selectedLabel}
+        loading={loadingDay}
+        workouts={dayWorkouts}
+        groupedByPart={groupedByPart}
+        totalSets={totalSets}
+      />
+    </>
+  );
+}
 
-        {loadingDay && <p className="text-muted text-xs">読み込み中...</p>}
-        {!loadingDay && dayWorkouts.length === 0 && (
-          <p className="text-muted text-xs">この日は記録がありません</p>
+function DaySummaryCard({
+  label, loading, workouts, groupedByPart, totalSets,
+}: {
+  label: string;
+  loading: boolean;
+  workouts: WorkoutRow[];
+  groupedByPart: Record<string, { workout: WorkoutRow; sets: WorkoutSet[] }[]>;
+  totalSets: number;
+}) {
+  const hasRecords = workouts.length > 0;
+  const firstSlug = hasRecords ? toSessionSlug(workouts[0].performed_at) : null;
+  const parts = Object.keys(groupedByPart);
+
+  const inner = (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <h3 className="text-sm font-bold text-ink">{label}のトレーニング記録</h3>
+        {loading && <p className="text-muted text-xs mt-1">読み込み中...</p>}
+        {!loading && !hasRecords && (
+          <p className="text-muted text-xs mt-1">この日は記録がありません</p>
         )}
-
-        {!loadingDay && Object.entries(groupedByPart).map(([part, items]) => (
-          <div key={part} className="mb-4 last:mb-0">
-            <div className="flex items-center gap-2 mb-2">
-              <BodyPartIcon part={part} size={28} className="text-ink" />
-              <span className="font-bold">{part}</span>
-            </div>
-            <div className="grid grid-cols-[1fr_60px_72px_60px] gap-x-2 text-[11px] text-muted mb-1 px-1">
-              <span>種目</span>
-              <span className="text-right">セット</span>
-              <span className="text-right">重量</span>
-              <span className="text-right">回数</span>
-            </div>
-            {items.map(({ workout: w, sets }) => {
-              const setCount = sets.length;
-              // 各セットの自身のset_typeで scoreを計算
-              const topSet = sets.reduce<WorkoutSet | null>((best, s) => {
-                const sc = s.set_type === "no_weight" ? s.reps : s.weight * s.reps;
-                const bc = best == null ? -1 : (best.set_type === "no_weight" ? best.reps : best.weight * best.reps);
-                return sc > bc ? s : best;
-              }, null);
-              return (
-                <div key={w.id} className="grid grid-cols-[1fr_60px_72px_60px] gap-x-2 text-sm py-1 border-t border-border first:border-t-0">
-                  <span className="truncate">{w.exercise?.name ?? "?"}</span>
-                  <span className="text-right">{setCount}</span>
-                  <span className="text-right">
-                    {topSet == null ? "-" : topSet.set_type === "no_weight" ? "自重" : `${topSet.weight} kg`}
-                  </span>
-                  <span className="text-right">
-                    {topSet == null ? "-" : `${topSet.reps}回`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {!loadingDay && dayWorkouts.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-xs text-muted">
-            <span>⏱</span>
-            <span>合計セット数：{totalSets}セット</span>
+        {!loading && hasRecords && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {parts.map((p) => (
+              <span key={p} className="inline-flex items-center gap-1 text-[11px] bg-surface border border-border rounded-full px-2 py-0.5">
+                <BodyPartIcon part={p} size={12} className="text-ink" />
+                {p}
+              </span>
+            ))}
+            <span className="text-[11px] text-muted">・種目{workouts.length}・{totalSets}セット</span>
           </div>
         )}
       </div>
-    </>
+      {hasRecords && <span className="text-muted shrink-0">›</span>}
+    </div>
+  );
+
+  if (hasRecords && firstSlug) {
+    return (
+      <Link
+        href={`/sessions/${firstSlug}`}
+        prefetch={false}
+        className="block bg-white border border-border rounded-xl p-4 shadow-sm mt-3 active:bg-surface"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <div className="bg-white border border-border rounded-xl p-4 shadow-sm mt-3">
+      {inner}
+    </div>
   );
 }

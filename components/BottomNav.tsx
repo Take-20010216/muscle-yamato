@@ -24,7 +24,7 @@ export default function BottomNav() {
               <Link
                 href={t.href}
                 prefetch={true}
-                className={`flex flex-col items-center py-2 text-[11px] ${active ? "text-ink font-semibold" : "text-muted"}`}
+                className={`flex flex-col items-center py-2 text-[11px] ${active ? "text-navy font-semibold" : "text-muted"}`}
               >
                 <t.icon className="w-6 h-6 mb-0.5" />
                 {t.label}

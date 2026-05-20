@@ -20,27 +20,32 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .animate-celebrate { animation: celebrate 0.6s ease-out forwards; }
 
-/* Metallic dark button: gunmetal sheen */
+/* Navy gradient button */
 .btn-metallic {
-  background: linear-gradient(180deg, #52525b 0%, #27272a 35%, #18181b 65%, #3f3f46 100%);
+  background: linear-gradient(180deg, #3b5bbf 0%, #1e3a8a 35%, #0f1d4a 65%, #1e3a8a 100%);
   color: #ffffff;
   font-weight: 700;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.45),
-    0 2px 6px rgba(0, 0, 0, 0.18);
-  border: 1px solid #0a0a0a;
+    inset 0 -2px 6px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(15, 29, 74, 0.2);
+  border: 1px solid #0a173d;
 }
 .btn-metallic:disabled { opacity: 0.5; }
 
-/* For active state inside a 3-tab toggle */
+/* For active state inside tab toggles */
 .tab-metallic-active {
-  background: linear-gradient(180deg, #52525b 0%, #27272a 50%, #18181b 100%);
+  background: linear-gradient(180deg, #3b5bbf 0%, #1e3a8a 50%, #0f1d4a 100%);
   color: #ffffff;
   font-weight: 700;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Progress bar fill (navy gradient) */
+.bar-fill-navy {
+  background: linear-gradient(90deg, #93c5fd 0%, #3b5bbf 50%, #1e3a8a 100%);
 }
 
 @keyframes pulseRing {
