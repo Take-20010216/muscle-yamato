@@ -238,8 +238,8 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
                 type="button"
                 onClick={() => !disabled && togglePart(p)}
                 disabled={disabled}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs ${
-                  active ? "bg-ink text-bg border-ink" : "bg-white border-border text-ink"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs shadow-sm ${
+                  active ? "btn-navy border-transparent" : "bg-white border-border text-ink"
                 } ${disabled ? "opacity-40" : ""}`}
               >
                 <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-ink"} />

@@ -197,13 +197,17 @@ export default function CalendarHistory() {
               <button
                 key={i}
                 onClick={() => setSelectedKey(c.dateKey)}
-                className={`relative aspect-square flex flex-col items-center justify-center rounded-full text-sm ${
-                  !c.inMonth ? "text-muted/40" : isSelected ? "btn-metallic font-bold" : "text-ink"
+                className={`relative aspect-square flex flex-col items-center justify-center rounded-2xl text-sm ${
+                  !c.inMonth
+                    ? "text-muted/40 bg-white border border-border/50"
+                    : isSelected
+                    ? "btn-metallic font-bold rounded-full"
+                    : "text-ink bg-white border border-border shadow-sm"
                 }`}
               >
                 <span>{dayNum}</span>
                 {hasWorkout && c.inMonth && !isSelected && (
-                  <span className="absolute bottom-1 w-1 h-1 rounded-full bg-ink/70" />
+                  <span className="absolute bottom-1 w-1 h-1 rounded-full bg-navy" />
                 )}
               </button>
             );

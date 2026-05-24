@@ -293,7 +293,7 @@ function RecordFormInner() {
       </header>
 
       {/* 部位選択 */}
-      <div className="mb-4 bg-white border border-border rounded-xl p-3">
+      <div className="mb-4 bg-white border border-border rounded-xl p-3 shadow-sm">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted">本日のトレーニング部位</span>
           <span className="text-[10px] text-muted">{selectedParts.length}/3</span>
@@ -311,8 +311,8 @@ function RecordFormInner() {
                 type="button"
                 onClick={() => !disabled && togglePart(p)}
                 disabled={disabled}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs ${
-                  active ? "bg-ink text-bg border-ink" : "bg-white border-border text-ink"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs shadow-sm ${
+                  active ? "btn-navy border-transparent" : "bg-white border-border text-ink"
                 } ${disabled ? "opacity-40" : ""}`}
               >
                 <BodyPartIcon part={p} size={16} className={active ? "text-bg" : "text-ink"} />
@@ -415,6 +415,9 @@ function EntryCard({
     onChange({ sets: entry.sets.map((x, idx) => (idx === i ? { ...x, _committed: true } : x)) });
     onSetCommit();
   }
+  function uncommitSet(i: number) {
+    onChange({ sets: entry.sets.map((x, idx) => (idx === i ? { ...x, _committed: false } : x)) });
+  }
   function addSet() {
     // 直前のセットの種別を継承
     const last = entry.sets[entry.sets.length - 1];
@@ -495,6 +498,7 @@ function EntryCard({
             onChangeType={(t) => changeSetType(i, t)}
             onChange={(patch) => updateSet(i, patch)}
             onCommit={() => commitSet(i)}
+            onUncommit={() => uncommitSet(i)}
             onRemove={() => removeSet(i)}
             canRemove={entry.sets.length > 1}
             exerciseBName={entry.exerciseB?.name}
@@ -526,13 +530,14 @@ function EntryCard({
 }
 
 function SetRowInput({
-  index, row, onChangeType, onChange, onCommit, onRemove, canRemove, exerciseBName, lastHint,
+  index, row, onChangeType, onChange, onCommit, onUncommit, onRemove, canRemove, exerciseBName, lastHint,
   onAddDrop, onUpdateDrop, onRemoveDrop,
 }: {
   index: number; row: SetRow;
   onChangeType: (t: SetType) => void;
   onChange: (p: Partial<SetRow>) => void;
   onCommit: () => void;
+  onUncommit: () => void;
   onRemove: () => void; canRemove: boolean;
   exerciseBName?: string;
   lastHint?: LastSetHint | null;
@@ -543,8 +548,30 @@ function SetRowInput({
   const noWeight = row.set_type === "no_weight";
   const hasValues = noWeight ? Number(row.reps) > 0 : Number(row.weight) > 0 && Number(row.reps) > 0;
 
+  // 完了スタンプ表示
+  if (row._committed) {
+    return (
+      <div className="set-done border rounded-xl p-2.5 flex items-center gap-3">
+        <div className="w-5 text-center text-muted text-sm">{index}</div>
+        <div className="flex-1 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-navy text-white text-[10px] tracking-widest font-bold shadow-sm">DONE</span>
+          <span className="text-sm text-ink/70">
+            {noWeight ? `${row.reps}回` : `${row.weight}kg × ${row.reps}回`}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onUncommit}
+          title="記録を戻す"
+          className="px-2 py-1 rounded-md text-xs bg-white border border-border text-muted"
+        >↺ 戻す</button>
+        <button onClick={onRemove} disabled={!canRemove} className="text-muted disabled:opacity-30">×</button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-surface border border-border rounded-xl p-2.5">
+    <div className="bg-white border border-border rounded-xl p-2.5 shadow-sm">
       <div className="flex items-center gap-2">
         <div className="w-5 text-center text-muted text-sm">{index}</div>
         {!noWeight && (

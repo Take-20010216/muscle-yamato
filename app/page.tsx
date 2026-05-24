@@ -86,7 +86,7 @@ async function WeeklyVolumeSection() {
         const v = vol[bp] ?? 0;
         const pct = Math.min(100, Math.round((v / maxVol) * 100));
         return (
-          <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[72px]">
+          <div key={bp} className="bg-white border border-border rounded-xl py-3 px-2 flex flex-col items-center shrink-0 min-w-[72px] shadow-sm">
             <BodyPartIcon part={bp} size={24} className="text-ink mb-1" />
             <span className="text-[10px] font-medium whitespace-nowrap">{bp}</span>
             <div className="text-xs font-bold mt-1 text-navy">{v}</div>

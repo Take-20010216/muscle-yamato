@@ -104,10 +104,10 @@ export default function ExercisePicker({ value, onChange, label = "種目", defa
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full bg-white border border-border rounded-xl px-4 py-4 flex items-center justify-between hover:bg-surface"
+        className="w-full btn-navy rounded-2xl px-5 py-4 flex items-center justify-between font-bold"
       >
-        <span className={value ? "text-ink font-medium" : "text-muted"}>{value ? value.name : "種目を選択"}</span>
-        <span className="text-muted">›</span>
+        <span>{value ? value.name : "種目を選択"}</span>
+        <span className="opacity-90">›</span>
       </button>
 
       {open && (
