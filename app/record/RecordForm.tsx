@@ -18,6 +18,7 @@ type SetRow = {
   drops: { weight: string; reps: string }[]; // N段ドロップ。set_type==='drop'時のみ意味あり
   weight_b: string;
   reps_b: string;
+  has_assist: boolean; // 補助あり
   _committed?: boolean;
 };
 
@@ -43,6 +44,7 @@ function emptyRow(set_type: SetType = "normal"): SetRow {
     drops: set_type === "drop" ? [{ weight: "", reps: "" }] : [],
     weight_b: "",
     reps_b: "",
+    has_assist: false,
   };
 }
 
@@ -248,6 +250,7 @@ function RecordFormInner() {
             drops,
             weight_b: s.set_type === "super" ? Number(s.weight_b || 0) || null : null,
             reps_b: s.set_type === "super" ? Number(s.reps_b || 0) || null : null,
+            has_assist: !!s.has_assist,
           };
         });
         const { error: serr } = await supabase.from("workout_sets").insert(rows);
@@ -553,11 +556,14 @@ function SetRowInput({
     return (
       <div className="set-done border rounded-xl p-2.5 flex items-center gap-3">
         <div className="w-5 text-center text-muted text-sm">{index}</div>
-        <div className="flex-1 flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-navy text-white text-[10px] tracking-widest font-bold shadow-sm">DONE</span>
           <span className="text-sm text-ink/70">
             {noWeight ? `${row.reps}回` : `${row.weight}kg × ${row.reps}回`}
           </span>
+          {row.has_assist && (
+            <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5">🤝 補助あり</span>
+          )}
         </div>
         <button
           type="button"
@@ -591,8 +597,8 @@ function SetRowInput({
         <button onClick={onRemove} disabled={!canRemove} className="text-muted disabled:opacity-30 ml-1">×</button>
       </div>
 
-      {/* セット種別ピッカー */}
-      <div className="flex gap-1 mt-1.5 pl-7">
+      {/* セット種別ピッカー＋補助ありチェック */}
+      <div className="flex gap-1 mt-1.5 pl-7 items-center flex-wrap">
         {(["normal", "drop", "super", "no_weight"] as SetType[]).map((t) => (
           <button
             key={t}
@@ -603,6 +609,18 @@ function SetRowInput({
             }`}
           >{SET_TYPE_SHORT[t]}</button>
         ))}
+        <button
+          type="button"
+          onClick={() => onChange({ has_assist: !row.has_assist })}
+          title="補助あり（追い込み）"
+          className={`ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tracking-wide border ${
+            row.has_assist
+              ? "bg-amber-100 text-amber-800 border-amber-300"
+              : "bg-white border-border text-muted"
+          }`}
+        >
+          <span>🤝</span><span>補助</span>
+        </button>
       </div>
 
       {lastHint && (

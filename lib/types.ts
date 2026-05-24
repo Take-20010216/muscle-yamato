@@ -49,6 +49,7 @@ export type WorkoutSet = {
   drops: DropStage[];           // N段ドロップ ([] なら通常)
   weight_b: number | null;      // super set partner weight
   reps_b: number | null;        // super set partner reps
+  has_assist: boolean;          // 補助あり（追い込み）フラグ
 };
 
 export type Workout = {

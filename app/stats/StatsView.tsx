@@ -153,6 +153,9 @@ export default function StatsView() {
                         {s.set_type === "no_weight" ? `${s.reps}回（自重）` : `${s.weight}kg × ${s.reps}回`}
                       </span>
                       <span className="text-[9px] tracking-wider text-muted">{SET_TYPE_LABELS[s.set_type as SetType]}</span>
+                      {s.has_assist && (
+                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5">🤝 補助</span>
+                      )}
                       {s.set_type === "drop" && drops.length > 0 && (
                         <span className="text-muted text-xs">
                           {drops.map((d) => ` → ${d.weight}kg × ${d.reps}回`).join("")}
