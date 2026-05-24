@@ -109,7 +109,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                       </span>
                       <span className="text-[9px] tracking-wider text-muted">{SET_TYPE_LABELS[s.set_type as SetType]}</span>
                       {s.has_assist && (
-                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5">🤝 補助</span>
+                        <span className="text-[10px] bg-yellow-400 text-yellow-900 border border-yellow-500 rounded px-1.5 py-0.5 font-bold">🤝 補助</span>
                       )}
                       {s.set_type === "drop" && drops.length > 0 && (
                         <span className="text-muted text-xs">

@@ -562,7 +562,7 @@ function SetRowInput({
             {noWeight ? `${row.reps}回` : `${row.weight}kg × ${row.reps}回`}
           </span>
           {row.has_assist && (
-            <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5">🤝 補助あり</span>
+            <span className="text-[10px] bg-yellow-400 text-yellow-900 border border-yellow-500 rounded px-1.5 py-0.5 font-bold">🤝 補助あり</span>
           )}
         </div>
         <button
@@ -613,13 +613,13 @@ function SetRowInput({
           type="button"
           onClick={() => onChange({ has_assist: !row.has_assist })}
           title="補助あり（追い込み）"
-          className={`ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tracking-wide border ${
+          className={`ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tracking-wide border shadow-sm ${
             row.has_assist
-              ? "bg-amber-100 text-amber-800 border-amber-300"
+              ? "bg-yellow-400 text-yellow-900 border-yellow-500 font-bold"
               : "bg-white border-border text-muted"
           }`}
         >
-          <span>🤝</span><span>補助</span>
+          <span>🤝</span><span>補助{row.has_assist ? "あり" : ""}</span>
         </button>
       </div>
 
