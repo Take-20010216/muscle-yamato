@@ -81,22 +81,25 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       <div className="space-y-3">
         {rows.map((w) => {
           const ws = byW[w.id] ?? [];
-          const exPart = w.exercise?.body_part;
+          // 種目自体の部位ではなく、ワークアウトのセッション部位を表示
+          const wParts = w.body_parts ?? [];
           return (
-            <div key={w.id} className="bg-white border border-border rounded-xl p-4">
-              <div className="flex items-start justify-between">
-                <div>
+            <div key={w.id} className="bg-white border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
                   <div className="font-bold">
                     {w.exercise?.name ?? "?"}
                     {w.exercise_b ? ` ＋ ${w.exercise_b.name}` : ""}
                   </div>
                 </div>
-                {exPart && (
-                  <div className="flex items-center gap-1 text-xs text-muted">
-                    <BodyPartIcon part={exPart} size={16} className="text-ink" />
-                    <span>{exPart}</span>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
+                  {wParts.map((p) => (
+                    <span key={p} className="inline-flex items-center gap-0.5 text-[11px] text-muted">
+                      <BodyPartIcon part={p} size={14} className="text-ink" />
+                      {p}
+                    </span>
+                  ))}
+                </div>
               </div>
               <ul className="mt-2 space-y-1 text-sm">
                 {ws.map((s) => {

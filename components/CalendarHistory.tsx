@@ -149,15 +149,23 @@ export default function CalendarHistory() {
     else setViewM(viewM + 1);
   }
 
-  // 部位ごとにグループ化（種目のbody_partを採用）
+  // セッションの body_parts を表示（ユーザーが開始時に選んだ部位）
+  const sessionParts = useMemo(() => {
+    const set = new Set<string>();
+    for (const w of dayWorkouts) for (const p of w.body_parts ?? []) set.add(p);
+    return Array.from(set);
+  }, [dayWorkouts]);
+
+  // 互換用 (DaySummaryCardはobjectからparts一覧と種目数を取る)
   const groupedByPart = useMemo(() => {
     const g: Record<string, { workout: WorkoutRow; sets: WorkoutSet[] }[]> = {};
+    for (const p of sessionParts) g[p] = [];
     for (const w of dayWorkouts) {
-      const part = w.exercise?.body_part ?? "その他";
-      (g[part] ||= []).push({ workout: w, sets: daySets[w.id] ?? [] });
+      const key = sessionParts[0] ?? (w.exercise?.body_part ?? "その他");
+      (g[key] ||= []).push({ workout: w, sets: daySets[w.id] ?? [] });
     }
     return g;
-  }, [dayWorkouts, daySets]);
+  }, [dayWorkouts, daySets, sessionParts]);
 
   const totalSets = Object.values(daySets).reduce((acc, arr) => acc + arr.length, 0);
   const selectedLabel = (() => {
@@ -221,7 +229,7 @@ export default function CalendarHistory() {
         label={selectedLabel}
         loading={loadingDay}
         workouts={dayWorkouts}
-        groupedByPart={groupedByPart}
+        sessionParts={sessionParts}
         totalSets={totalSets}
       />
     </>
@@ -229,17 +237,17 @@ export default function CalendarHistory() {
 }
 
 function DaySummaryCard({
-  label, loading, workouts, groupedByPart, totalSets,
+  label, loading, workouts, sessionParts, totalSets,
 }: {
   label: string;
   loading: boolean;
   workouts: WorkoutRow[];
-  groupedByPart: Record<string, { workout: WorkoutRow; sets: WorkoutSet[] }[]>;
+  sessionParts: string[];
   totalSets: number;
 }) {
   const hasRecords = workouts.length > 0;
   const firstSlug = hasRecords ? toSessionSlug(workouts[0].performed_at) : null;
-  const parts = Object.keys(groupedByPart);
+  const parts = sessionParts;
 
   const inner = (
     <div className="flex items-center justify-between gap-3">
