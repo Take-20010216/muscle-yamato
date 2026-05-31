@@ -33,6 +33,10 @@ export async function updateSession(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   const isAuthPage = url.pathname === "/login" || url.pathname === "/signup";
+  // keepalive等のpublicなAPIは認証リダイレクトの対象外（関数を温め続けるため）
+  const isPublicApi = url.pathname.startsWith("/api/keepalive");
+
+  if (isPublicApi) return response;
 
   if (!user && !isAuthPage) {
     url.pathname = "/login";
