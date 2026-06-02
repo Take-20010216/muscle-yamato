@@ -104,3 +104,47 @@ export const SET_TYPE_HINTS: Record<SetType, string> = {
 export function isFullBody(parts: BodyPart[]): boolean {
   return parts.includes("全身");
 }
+
+// ============================================================
+// コミュニティ機能
+// ============================================================
+
+// 共有投稿に埋め込むメニューのスナップショット
+export type SharedSet = {
+  weight: number;
+  reps: number;
+  set_type: SetType;
+  has_assist?: boolean;
+};
+export type SharedMenuItem = {
+  name: string;        // 種目名（スーパーセットは "A ＋ B"）
+  sets: SharedSet[];
+};
+
+export type Post = {
+  id: string;
+  user_id: string;
+  body: string;
+  body_parts: BodyPart[] | null;
+  menu: SharedMenuItem[] | null;
+  performed_at: string | null;
+  created_at: string;
+};
+
+export type PostComment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+};
+
+export type PostReaction = {
+  post_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+};
+
+// 利用できるリアクション絵文字
+export const REACTION_EMOJIS = ["💪", "🔥", "👏", "😤", "🎉"] as const;

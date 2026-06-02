@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import ExercisePicker from "@/components/ExercisePicker";
 import RestTimer from "@/components/RestTimer";
 import BodyPartIcon from "@/components/BodyPartIcon";
-import type { Exercise, SetType, BodyPart, DropStage } from "@/lib/types";
+import type { Exercise, SetType, BodyPart, DropStage, SharedMenuItem } from "@/lib/types";
 import { BODY_PARTS, SET_TYPE_SHORT, isFullBody } from "@/lib/types";
 import { setScore } from "@/lib/utils";
+import ShareModal from "@/components/ShareModal";
 
 // 入力中のセット行（保存前なので weight/reps は string）
 type SetRow = {
@@ -76,6 +77,8 @@ function RecordFormInner() {
   const [selectedParts, setSelectedParts] = useState<BodyPart[]>([]);
   const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(), makeEntry(), makeEntry(), makeEntry()]);
   const [pbBeaten, setPbBeaten] = useState<{ exerciseName: string; weight: number; reps: number; set_type: SetType } | null>(null);
+  // 保存後の共有用データ（メニューのスナップショット）
+  const [shareData, setShareData] = useState<{ bodyParts: BodyPart[]; menu: SharedMenuItem[] } | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingRoutine, setLoadingRoutine] = useState(!!routineId);
   const [timerTrigger, setTimerTrigger] = useState<number | null>(null);
@@ -215,6 +218,7 @@ function RecordFormInner() {
       if (!user) throw new Error("not signed in");
 
       let beatenInfo: typeof pbBeaten = null;
+      const menuSnapshot: SharedMenuItem[] = [];
 
       for (const e of valid) {
         const hasSuper = e.sets.some((s) => s.set_type === "super");
@@ -256,6 +260,17 @@ function RecordFormInner() {
         const { error: serr } = await supabase.from("workout_sets").insert(rows);
         if (serr) throw serr;
 
+        // 共有用スナップショット（種目名＋セット内容のコピー）
+        menuSnapshot.push({
+          name: e.exercise!.name + (hasSuper && e.exerciseB ? ` ＋ ${e.exerciseB.name}` : ""),
+          sets: goodSets.map((s) => ({
+            weight: s.set_type === "no_weight" ? 0 : Number(s.weight),
+            reps: Number(s.reps),
+            set_type: s.set_type,
+            has_assist: !!s.has_assist,
+          })),
+        });
+
         let bestScore = 0, bw = 0, br = 0, bt: SetType = "normal";
         for (const s of goodSets) {
           const wv = s.set_type === "no_weight" ? 0 : Number(s.weight);
@@ -269,13 +284,10 @@ function RecordFormInner() {
         }
       }
 
-      if (beatenInfo) {
-        setPbBeaten(beatenInfo);
-        setTimeout(() => router.push("/"), 1800);
-      } else {
-        router.push("/");
-        router.refresh();
-      }
+      // 自己ベスト更新時は祝福バッジを共有モーダル内に表示
+      if (beatenInfo) setPbBeaten(beatenInfo);
+      // 保存完了 → 共有モーダルを表示（スキップでホームへ）
+      setShareData({ bodyParts: selectedParts, menu: menuSnapshot });
     } catch (e: any) {
       alert(e.message ?? "保存に失敗しました");
     } finally {
@@ -372,18 +384,13 @@ function RecordFormInner() {
 
       <RestTimer triggerSeconds={timerTrigger} onTriggered={() => setTimerTrigger(null)} />
 
-      {pbBeaten && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-6">
-          <div className="bg-white border border-border rounded-2xl p-8 text-center animate-celebrate shadow-2xl">
-            <div className="text-5xl mb-3">🏆</div>
-            <div className="text-xl font-bold mb-1">自己ベスト更新！</div>
-            <p className="text-muted text-sm mb-2">{pbBeaten.exerciseName}</p>
-            <p className="text-2xl font-bold">
-              {pbBeaten.set_type === "no_weight" ? `${pbBeaten.reps}回` : `${pbBeaten.weight}kg × ${pbBeaten.reps}回`}
-            </p>
-            <p className="text-muted text-sm mt-3">最高だ。次もこの調子で行こう。</p>
-          </div>
-        </div>
+      {shareData && (
+        <ShareModal
+          bodyParts={shareData.bodyParts}
+          menu={shareData.menu}
+          pbBeaten={pbBeaten}
+          onClose={() => { router.push("/"); router.refresh(); }}
+        />
       )}
     </main>
   );
