@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "mobile:sync": "next build && npx cap sync ios",
+    "mobile:sync": "BUILD_TARGET=mobile next build && npx cap sync ios",
     "mobile:open": "npx cap open ios"
   },
   "dependencies": {
