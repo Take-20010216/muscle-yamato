@@ -59,14 +59,16 @@ Google Play は緩く、PWA をほぼそのまま（TWA方式）配信可能。
 
 ## 3. ロードマップ（この順で進める）
 
-- [ ] **STEP 1: アプリ素体の確定**
+- [x] **STEP 1: アプリ素体の確定**（コミュニティ機能まで実装済み）
   - コミュニティ機能のバグ取り・UI確定
   - 一通りの動作確認（記録→共有→リアクション→コメント）
-- [ ] **STEP 2: Capacitor 導入**
-  - Capacitor をプロジェクトに追加
-  - iOS / Android プロジェクト生成
-  - Mac のシミュレータでアプリとして起動できる状態を作る
-  - ※ ここまで無料。「本当にアプリになる感触」を確認してから課金判断できる
+- [x] **STEP 2: Capacitor 導入**（完了）
+  - 静的書き出し(output: export)化 → コールドスタートも解消
+  - @capacitor/core, ios, app, status-bar 導入
+  - capacitor.config.ts（appId: com.muscleyamato.app / webDir: out）
+  - ios/ ネイティブプロジェクト生成（Swift Package Manager方式）
+  - npm scripts: `mobile:sync`（next build＋cap sync）/ `mobile:open`
+  - ▶ 次: `npm run mobile:open` で Xcode を開き、シミュレータで Run
 - [ ] **STEP 3: プッシュ通知の実装**（Apple審査対策＋機能強化）
   - 通知許可フロー
   - Supabase 側のトリガー（リアクション/コメント時に通知）
