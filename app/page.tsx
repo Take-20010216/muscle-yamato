@@ -1,15 +1,56 @@
+"use client";
 import Link from "next/link";
-import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { startOfWeek } from "@/lib/utils";
 import { BODY_PARTS } from "@/lib/types";
 import CalendarHistory from "@/components/CalendarHistory";
 import BodyPartIcon from "@/components/BodyPartIcon";
 
-export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
+type PbRow = { weight: number; reps: number; exercise: { name: string } | null };
+
+export default function HomePage() {
+  const [vol, setVol] = useState<Record<string, number> | null>(null);
+  const [pbs, setPbs] = useState<PbRow[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const weekStart = startOfWeek().toISOString();
+
+      // 部位別ボリューム
+      const { data: weekW } = await supabase
+        .from("workouts")
+        .select("id,body_parts")
+        .gte("performed_at", weekStart);
+      const week = (weekW ?? []) as { id: string; body_parts: string[] }[];
+      const counts: Record<string, number> = {};
+      if (week.length) {
+        const { data: sets } = await supabase
+          .from("workout_sets")
+          .select("workout_id")
+          .in("workout_id", week.map((w) => w.id));
+        for (const s of sets ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
+      }
+      const v: Record<string, number> = {};
+      for (const w of week) {
+        const c = counts[w.id] ?? 0;
+        for (const p of w.body_parts ?? []) v[p] = (v[p] ?? 0) + c;
+      }
+      if (!cancelled) setVol(v);
+
+      // 今週の自己ベスト
+      const { data: pbData } = await supabase
+        .from("personal_bests")
+        .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name)")
+        .gte("achieved_at", weekStart)
+        .order("achieved_at", { ascending: false })
+        .limit(3);
+      if (!cancelled) setPbs((pbData ?? []) as unknown as PbRow[]);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <main className="px-4 pt-6">
@@ -40,46 +81,18 @@ export default async function HomePage() {
       </div>
 
       <Section title="部位別ボリューム（今週）">
-        <Suspense fallback={<SkeletonGrid />}>
-          <WeeklyVolumeSection />
-        </Suspense>
+        {vol === null ? <SkeletonGrid /> : <WeeklyVolume vol={vol} />}
       </Section>
 
       <Section title="自己ベスト更新（今週）">
-        <Suspense fallback={<SkeletonList />}>
-          <PBSection />
-        </Suspense>
+        {pbs === null ? <SkeletonList /> : <PBList pbs={pbs} />}
       </Section>
     </main>
   );
 }
 
-async function WeeklyVolumeSection() {
-  const supabase = await createClient();
-  const weekStart = startOfWeek().toISOString();
-  const { data: weekW } = await supabase
-    .from("workouts")
-    .select("id,body_parts")
-    .gte("performed_at", weekStart);
-
-  const week = (weekW ?? []) as { id: string; body_parts: string[] }[];
-  let counts: Record<string, number> = {};
-  if (week.length) {
-    const { data: sets } = await supabase
-      .from("workout_sets")
-      .select("workout_id")
-      .in("workout_id", week.map((w) => w.id));
-    for (const s of sets ?? []) counts[s.workout_id] = (counts[s.workout_id] ?? 0) + 1;
-  }
-  // body_parts は配列なので、各部位に同じセット数を加算
-  const vol: Record<string, number> = {};
-  for (const w of week) {
-    const c = counts[w.id] ?? 0;
-    for (const p of w.body_parts ?? []) vol[p] = (vol[p] ?? 0) + c;
-  }
-
+function WeeklyVolume({ vol }: { vol: Record<string, number> }) {
   const maxVol = Math.max(1, ...BODY_PARTS.map((bp) => vol[bp] ?? 0));
-
   return (
     <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
       {BODY_PARTS.map((bp) => {
@@ -100,21 +113,11 @@ async function WeeklyVolumeSection() {
   );
 }
 
-async function PBSection() {
-  const supabase = await createClient();
-  const weekStart = startOfWeek().toISOString();
-  const { data: pbs } = await supabase
-    .from("personal_bests")
-    .select("weight,reps,achieved_at,exercise_id, exercise:exercises!personal_bests_exercise_id_fkey(name)")
-    .gte("achieved_at", weekStart)
-    .order("achieved_at", { ascending: false })
-    .limit(3);
-
-  if (!pbs || pbs.length === 0) return <Empty text="今週の自己ベスト更新はまだありません" />;
-
+function PBList({ pbs }: { pbs: PbRow[] }) {
+  if (pbs.length === 0) return <Empty text="今週の自己ベスト更新はまだありません" />;
   return (
     <div className="space-y-2">
-      {pbs.map((p: any, i) => (
+      {pbs.map((p, i) => (
         <div key={i} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🏆</span>

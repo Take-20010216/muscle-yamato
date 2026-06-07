@@ -276,7 +276,7 @@ function DaySummaryCard({
   if (hasRecords && firstSlug) {
     return (
       <Link
-        href={`/sessions/${firstSlug}`}
+        href={`/session?t=${firstSlug}`}
         prefetch={false}
         className="block bg-white border border-border rounded-xl p-4 shadow-sm mt-3 active:bg-surface"
       >

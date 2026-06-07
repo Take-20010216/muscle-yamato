@@ -122,7 +122,7 @@ export default function StatsView() {
           {workouts.map((w) => (
             <div
               key={w.id}
-              onClick={() => router.push(`/sessions/${toSessionSlug(w.performed_at)}`)}
+              onClick={() => router.push(`/session?t=${toSessionSlug(w.performed_at)}`)}
               className="bg-white border border-border rounded-xl p-4 cursor-pointer active:bg-surface"
             >
               <div className="flex items-start justify-between">

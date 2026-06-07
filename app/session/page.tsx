@@ -1,6 +1,8 @@
+"use client";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/utils";
 import type { BodyPart, SetType, WorkoutSet, DropStage } from "@/lib/types";
 import { SET_TYPE_LABELS } from "@/lib/types";
@@ -24,35 +26,68 @@ function parseMinuteSlug(slug: string): { start: string; end: string } | null {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-export default async function SessionDetailPage({ params }: { params: Promise<{ time: string }> }) {
-  const { time } = await params;
-  const range = parseMinuteSlug(time);
-  if (!range) notFound();
+export default function SessionDetailPage() {
+  return (
+    <Suspense fallback={<main className="px-4 pt-6"><p className="text-muted text-sm">読み込み中...</p></main>}>
+      <SessionDetailInner />
+    </Suspense>
+  );
+}
 
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
+function SessionDetailInner() {
+  const params = useSearchParams();
+  const time = params.get("t") ?? "";
+  const [rows, setRows] = useState<WorkoutRow[] | null>(null);
+  const [byW, setByW] = useState<Record<string, WorkoutSet[]>>({});
 
-  const { data: workouts } = await supabase
-    .from("workouts")
-    .select(
-      "id,body_parts,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name,body_part), exercise_b:exercises!workouts_exercise_id_b_fkey(name)"
-    )
-    .gte("performed_at", range.start)
-    .lt("performed_at", range.end)
-    .order("performed_at", { ascending: true });
+  useEffect(() => {
+    let cancelled = false;
+    const range = parseMinuteSlug(time);
+    if (!range) { setRows([]); return; }
+    (async () => {
+      const supabase = createClient();
+      const { data: workouts } = await supabase
+        .from("workouts")
+        .select(
+          "id,body_parts,performed_at,memo, exercise:exercises!workouts_exercise_id_fkey(name,body_part), exercise_b:exercises!workouts_exercise_id_b_fkey(name)"
+        )
+        .gte("performed_at", range.start)
+        .lt("performed_at", range.end)
+        .order("performed_at", { ascending: true });
+      if (cancelled) return;
+      const r = (workouts ?? []) as unknown as WorkoutRow[];
+      setRows(r);
+      if (r.length === 0) return;
 
-  const rows = (workouts ?? []) as unknown as WorkoutRow[];
-  if (rows.length === 0) notFound();
+      const ids = r.map((w) => w.id);
+      const { data: sets } = await supabase
+        .from("workout_sets")
+        .select("*")
+        .in("workout_id", ids)
+        .order("set_index");
+      if (cancelled) return;
+      const map: Record<string, WorkoutSet[]> = {};
+      for (const s of (sets ?? []) as WorkoutSet[]) (map[s.workout_id] ||= []).push(s);
+      setByW(map);
+    })();
+    return () => { cancelled = true; };
+  }, [time]);
 
-  const ids = rows.map((w) => w.id);
-  const { data: sets } = await supabase
-    .from("workout_sets")
-    .select("*")
-    .in("workout_id", ids)
-    .order("set_index");
-  const byW: Record<string, WorkoutSet[]> = {};
-  for (const s of (sets ?? []) as WorkoutSet[]) (byW[s.workout_id] ||= []).push(s);
+  if (rows === null) {
+    return <main className="px-4 pt-6"><p className="text-muted text-sm">読み込み中...</p></main>;
+  }
+  if (rows.length === 0) {
+    return (
+      <main className="px-4 pt-6">
+        <header className="flex items-center justify-between mb-4">
+          <Link href="/" className="text-2xl">‹</Link>
+          <h1 className="font-bold">記録の詳細</h1>
+          <span className="w-6" />
+        </header>
+        <p className="text-muted text-sm bg-white border border-border rounded-xl px-4 py-3">記録が見つかりませんでした。</p>
+      </main>
+    );
+  }
 
   const headDate = rows[0].performed_at;
   const sessionParts = Array.from(new Set(rows.flatMap((r) => r.body_parts ?? [])));
@@ -81,7 +116,6 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       <div className="space-y-3">
         {rows.map((w) => {
           const ws = byW[w.id] ?? [];
-          // 種目自体の部位ではなく、ワークアウトのセッション部位を表示
           const wParts = w.body_parts ?? [];
           return (
             <div key={w.id} className="bg-white border border-border rounded-xl p-4 shadow-sm">
@@ -116,7 +150,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                       )}
                       {s.set_type === "drop" && drops.length > 0 && (
                         <span className="text-muted text-xs">
-                          {drops.map((d, i) => ` → ${d.weight}kg × ${d.reps}回`).join("")}
+                          {drops.map((d) => ` → ${d.weight}kg × ${d.reps}回`).join("")}
                         </span>
                       )}
                       {s.set_type === "super" && s.weight_b != null && (

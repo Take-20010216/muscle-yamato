@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bangers } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+import AuthGuard from "@/components/AuthGuard";
 
 const bangers = Bangers({ subsets: ["latin"], weight: "400", variable: "--font-display" });
 
@@ -35,8 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
       </head>
       <body className="min-h-screen bg-bg text-ink">
-        <div className="max-w-md mx-auto pb-24">{children}</div>
-        <BottomNav />
+        <AuthGuard>
+          <div className="max-w-md mx-auto pb-24">{children}</div>
+          <BottomNav />
+        </AuthGuard>
       </body>
     </html>
   );
