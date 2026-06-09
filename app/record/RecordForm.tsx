@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +10,7 @@ import type { Exercise, SetType, BodyPart, DropStage, SharedMenuItem } from "@/l
 import { BODY_PARTS, SET_TYPE_SHORT, isFullBody } from "@/lib/types";
 import { setScore } from "@/lib/utils";
 import ShareModal from "@/components/ShareModal";
+import { readDraft, clearDraft } from "@/lib/useDraft";
 
 // 入力中のセット行（保存前なので weight/reps は string）
 type SetRow = {
@@ -69,20 +70,46 @@ export default function RecordForm() {
   );
 }
 
+// 下書き(自動保存)の中身
+type RecordDraft = { selectedParts: BodyPart[]; entries: Entry[] };
+
 function RecordFormInner() {
   const router = useRouter();
   const params = useSearchParams();
   const routineId = params.get("routine");
 
-  const [selectedParts, setSelectedParts] = useState<BodyPart[]>([]);
-  const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(), makeEntry(), makeEntry(), makeEntry()]);
+  // 入力内容の自動保存先キー。ルーティン開始時はルーティンごとに分ける。
+  const draftKey = routineId ? `record:routine:${routineId}` : "record";
+  // マウント時に1回だけ下書きを読み出す（以降の自動保存と競合しないよう固定）
+  const [restored] = useState<RecordDraft | null>(() => readDraft<RecordDraft>(draftKey));
+  // 保存成功後に下書きへ書き戻さないためのフラグ
+  const savedRef = useRef(false);
+
+  const [selectedParts, setSelectedParts] = useState<BodyPart[]>(() => restored?.selectedParts ?? []);
+  const [entries, setEntries] = useState<Entry[]>(
+    () => restored?.entries ?? [makeEntry(), makeEntry(), makeEntry(), makeEntry()]
+  );
   const [pbBeaten, setPbBeaten] = useState<{ exerciseName: string; weight: number; reps: number; set_type: SetType } | null>(null);
   // 保存後の共有用データ（メニューのスナップショット）
   const [shareData, setShareData] = useState<{ bodyParts: BodyPart[]; menu: SharedMenuItem[] } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [loadingRoutine, setLoadingRoutine] = useState(!!routineId);
+  // 下書きが復元できた場合はDB読込をスキップ＝ローディング不要
+  const [loadingRoutine, setLoadingRoutine] = useState(!!routineId && !restored);
   const [timerTrigger, setTimerTrigger] = useState<number | null>(null);
   const [defaultRest, setDefaultRest] = useState<number>(90);
+
+  // 入力のたびに下書きを自動保存（ルーティン読込中・保存完了後は書かない）
+  useEffect(() => {
+    if (loadingRoutine || savedRef.current) return;
+    try {
+      localStorage.setItem(
+        `muscle:draft:${draftKey}`,
+        JSON.stringify({ selectedParts, entries })
+      );
+    } catch {
+      /* 容量超過などは無視 */
+    }
+  }, [selectedParts, entries, draftKey, loadingRoutine]);
 
   useEffect(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("rest_seconds") : null;
@@ -144,6 +171,8 @@ function RecordFormInner() {
 
   useEffect(() => {
     if (!routineId) return;
+    // 下書きを復元できた場合は、DBのルーティン構成で上書きしない（入力途中を優先）
+    if (restored) { setLoadingRoutine(false); return; }
     (async () => {
       const supabase = createClient();
       const { data: routine } = await supabase
@@ -284,6 +313,9 @@ function RecordFormInner() {
         }
       }
 
+      // 保存成功 → 下書きを破棄（これ以降は書き戻さない）
+      savedRef.current = true;
+      clearDraft(draftKey);
       // 自己ベスト更新時は祝福バッジを共有モーダル内に表示
       if (beatenInfo) setPbBeaten(beatenInfo);
       // 保存完了 → 共有モーダルを表示（スキップでホームへ）

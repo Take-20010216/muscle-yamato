@@ -6,6 +6,7 @@ import { fmtRelative } from "@/lib/utils";
 import { REACTION_EMOJIS, SET_TYPE_SHORT } from "@/lib/types";
 import type { Post, PostComment, SharedMenuItem, SetType } from "@/lib/types";
 import BodyPartIcon from "@/components/BodyPartIcon";
+import { useDraft } from "@/lib/useDraft";
 
 type ProfileLite = { id: string; username: string; display_name: string | null; avatar_url: string | null };
 type ReactionRow = { post_id: string; user_id: string; emoji: string };
@@ -150,7 +151,7 @@ function PostCard({
   onDelete: () => void;
 }) {
   const [showComments, setShowComments] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useDraft<string>(`comment:${post.id}`, "");
   const isMine = meId != null && post.user_id === meId;
 
   // 絵文字ごとの集計

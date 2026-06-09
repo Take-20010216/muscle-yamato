@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { readDraft, clearDraft } from "@/lib/useDraft";
 import ExercisePicker from "@/components/ExercisePicker";
 import BodyPartIcon from "@/components/BodyPartIcon";
 import type { Exercise, Routine, RoutineItem, BodyPart } from "@/lib/types";
@@ -128,19 +129,37 @@ type EditItem = {
   target_sets: number;
 };
 
+type RoutineDraft = { name: string; bodyParts: BodyPart[]; items: EditItem[] };
+
 function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onClose: () => void }) {
   const isNew = !routine;
-  const [name, setName] = useState(routine?.name ?? "");
-  const [bodyParts, setBodyParts] = useState<BodyPart[]>(routine?.body_parts ?? []);
+  // 入力内容の自動保存先（新規/既存ごとに分ける）
+  const draftKey = `routine:${routine?.id ?? "new"}`;
+  const [restored] = useState<RoutineDraft | null>(() => readDraft<RoutineDraft>(draftKey));
+  const savedRef = useRef(false);
+
+  const [name, setName] = useState(restored?.name ?? routine?.name ?? "");
+  const [bodyParts, setBodyParts] = useState<BodyPart[]>(restored?.bodyParts ?? routine?.body_parts ?? []);
   const [items, setItems] = useState<EditItem[]>(
-    (routine?.items ?? []).map((it) => ({
-      id: it.id,
-      exercise: it.exercise ?? null,
-      exercise_b: it.exercise_b ?? null,
-      target_sets: it.target_sets,
-    }))
+    restored?.items ??
+      (routine?.items ?? []).map((it) => ({
+        id: it.id,
+        exercise: it.exercise ?? null,
+        exercise_b: it.exercise_b ?? null,
+        target_sets: it.target_sets,
+      }))
   );
   const [saving, setSaving] = useState(false);
+
+  // 入力のたびに下書きを自動保存（保存成功後は書かない）
+  useEffect(() => {
+    if (savedRef.current) return;
+    try {
+      localStorage.setItem(`muscle:draft:${draftKey}`, JSON.stringify({ name, bodyParts, items }));
+    } catch {
+      /* 容量超過などは無視 */
+    }
+  }, [name, bodyParts, items, draftKey]);
 
   function togglePart(p: BodyPart) {
     setBodyParts((prev) => {
@@ -197,6 +216,9 @@ function RoutineEditor({ routine, onClose }: { routine: FullRoutine | null; onCl
         const { error } = await supabase.from("routine_items").insert(rows);
         if (error) throw error;
       }
+      // 保存成功 → 下書きを破棄
+      savedRef.current = true;
+      clearDraft(draftKey);
       onClose();
     } catch (e: any) {
       alert(e.message ?? "保存に失敗しました");

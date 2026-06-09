@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useDraft } from "@/lib/useDraft";
 import type { BodyPart, SharedMenuItem, SetType } from "@/lib/types";
 import { SET_TYPE_SHORT } from "@/lib/types";
 import BodyPartIcon from "@/components/BodyPartIcon";
@@ -15,9 +16,15 @@ export default function ShareModal({
   pbBeaten: PbInfo;
   onClose: () => void;
 }) {
-  const [comment, setComment] = useState("");
+  const [comment, setComment, clearComment] = useDraft<string>("share-comment", "");
   const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState(false);
+
+  // 閉じる時は下書きを破棄してから親のクローズ処理へ
+  function handleClose() {
+    clearComment();
+    onClose();
+  }
 
   async function share() {
     setSharing(true);
@@ -33,6 +40,7 @@ export default function ShareModal({
         performed_at: new Date().toISOString(),
       });
       if (error) throw error;
+      clearComment();
       setShared(true);
       setTimeout(onClose, 900);
     } catch (e: any) {
@@ -109,7 +117,7 @@ export default function ShareModal({
 
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={sharing}
                 className="border border-border rounded-xl py-3 text-center font-medium text-muted disabled:opacity-50"
               >スキップ</button>
