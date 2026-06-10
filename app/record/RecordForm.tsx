@@ -11,6 +11,7 @@ import { BODY_PARTS, SET_TYPE_SHORT, isFullBody } from "@/lib/types";
 import { setScore } from "@/lib/utils";
 import ShareModal from "@/components/ShareModal";
 import { readDraft, clearDraft } from "@/lib/useDraft";
+import { loadServerDraft, saveServerDraft, deleteServerDraft } from "@/lib/serverDraft";
 
 // 入力中のセット行（保存前なので weight/reps は string）
 type SetRow = {
@@ -70,8 +71,24 @@ export default function RecordForm() {
   );
 }
 
-// 下書き(自動保存)の中身
-type RecordDraft = { selectedParts: BodyPart[]; entries: Entry[] };
+// 下書き(自動保存)の中身。savedAt はローカルとサーバーのどちらが新しいか判定に使う。
+type RecordDraft = { selectedParts: BodyPart[]; entries: Entry[]; savedAt?: number };
+
+// 入力が何かしら入っているか（空フォームをサーバー保存しないための判定）
+function recordHasInput(parts: BodyPart[], es: Entry[]): boolean {
+  if (parts.length > 0) return true;
+  return es.some(
+    (e) =>
+      e.exercise ||
+      e.exerciseB ||
+      e.memo.trim() ||
+      e.sets.some(
+        (s) =>
+          s.weight || s.reps || s.weight_b || s.reps_b ||
+          s.drops.some((d) => d.weight || d.reps)
+      )
+  );
+}
 
 function RecordFormInner() {
   const router = useRouter();
@@ -84,6 +101,10 @@ function RecordFormInner() {
   const [restored] = useState<RecordDraft | null>(() => readDraft<RecordDraft>(draftKey));
   // 保存成功後に下書きへ書き戻さないためのフラグ
   const savedRef = useRef(false);
+  // サーバー保存のデバウンス用タイマー
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // サーバー下書きを適用済みか（ルーティンDB読込で上書きしないため）
+  const appliedServerRef = useRef(false);
 
   const [selectedParts, setSelectedParts] = useState<BodyPart[]>(() => restored?.selectedParts ?? []);
   const [entries, setEntries] = useState<Entry[]>(
@@ -98,18 +119,59 @@ function RecordFormInner() {
   const [timerTrigger, setTimerTrigger] = useState<number | null>(null);
   const [defaultRest, setDefaultRest] = useState<number>(90);
 
-  // 入力のたびに下書きを自動保存（ルーティン読込中・保存完了後は書かない）
+  // 入力のたびに下書きを自動保存。
+  //  - localStorage: 即時（高速・オフラインでも効く）
+  //  - Supabase: デバウンスして保存（iOSがlocalStorageを消しても残る）
   useEffect(() => {
     if (loadingRoutine || savedRef.current) return;
+    const payload: RecordDraft = { selectedParts, entries, savedAt: Date.now() };
     try {
-      localStorage.setItem(
-        `muscle:draft:${draftKey}`,
-        JSON.stringify({ selectedParts, entries })
-      );
+      localStorage.setItem(`muscle:draft:${draftKey}`, JSON.stringify(payload));
     } catch {
       /* 容量超過などは無視 */
     }
+    if (recordHasInput(selectedParts, entries)) {
+      if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+      serverSaveTimer.current = setTimeout(() => {
+        if (!savedRef.current) saveServerDraft(draftKey, payload);
+      }, 1200);
+    }
   }, [selectedParts, entries, draftKey, loadingRoutine]);
+
+  // マウント時：サーバー下書きを読み込み、ローカルより新しければ採用する。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const server = await loadServerDraft<RecordDraft>(draftKey);
+      if (cancelled || savedRef.current || !server) return;
+      const localAt = restored?.savedAt ?? 0;
+      // ローカルが無い、またはサーバーの方が新しい場合のみ反映
+      if (!restored || (server.savedAt ?? 0) > localAt) {
+        appliedServerRef.current = true;
+        setSelectedParts(server.selectedParts ?? []);
+        setEntries(server.entries ?? [makeEntry(), makeEntry(), makeEntry(), makeEntry()]);
+        setLoadingRoutine(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // draftKey はマウント時固定（ルーティン有無で変わらない）
+  }, [draftKey]);
+
+  // アプリを閉じる/バックグラウンドへ行く直前に、確実に保存しておく。
+  useEffect(() => {
+    function flush() {
+      if (savedRef.current || document.visibilityState !== "hidden") return;
+      const payload: RecordDraft = { selectedParts, entries, savedAt: Date.now() };
+      try { localStorage.setItem(`muscle:draft:${draftKey}`, JSON.stringify(payload)); } catch {}
+      if (recordHasInput(selectedParts, entries)) saveServerDraft(draftKey, payload);
+    }
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [selectedParts, entries, draftKey]);
 
   useEffect(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("rest_seconds") : null;
@@ -188,6 +250,8 @@ function RecordFormInner() {
         .select("*, exercise:exercises!routine_items_exercise_id_fkey(*), exercise_b:exercises!routine_items_exercise_id_b_fkey(*)")
         .eq("routine_id", routineId)
         .order("position");
+      // サーバー下書きが先に反映された場合は、ルーティンの初期構成で上書きしない
+      if (appliedServerRef.current) { setLoadingRoutine(false); return; }
       if (items && items.length) {
         const loaded: Entry[] = items.map((it: any) => ({
           uid: newUid(),
@@ -202,7 +266,10 @@ function RecordFormInner() {
         const ctxs = await Promise.all(
           loaded.map((e) => (e.exercise ? fetchExerciseContext(e.exercise.id) : Promise.resolve({ pb: null, lastSession: null })))
         );
-        setEntries((prev) => prev.map((e, i) => ({ ...e, pb: ctxs[i].pb, lastSession: ctxs[i].lastSession })));
+        // 取得中にサーバー下書きが反映された場合は上書きしない
+        if (!appliedServerRef.current) {
+          setEntries((prev) => prev.map((e, i) => ({ ...e, pb: ctxs[i].pb, lastSession: ctxs[i].lastSession })));
+        }
       }
       setLoadingRoutine(false);
     })();
@@ -315,7 +382,9 @@ function RecordFormInner() {
 
       // 保存成功 → 下書きを破棄（これ以降は書き戻さない）
       savedRef.current = true;
+      if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
       clearDraft(draftKey);
+      await deleteServerDraft(draftKey);
       // 自己ベスト更新時は祝福バッジを共有モーダル内に表示
       if (beatenInfo) setPbBeaten(beatenInfo);
       // 保存完了 → 共有モーダルを表示（スキップでホームへ）
